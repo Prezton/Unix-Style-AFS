@@ -51,9 +51,10 @@ int main(int argc, char**argv) {
 		char *size_pointer = malloc(sizeof(int));
 		// get messages and send replies to this client, until it goes away
 		while ( (rv=recv(sessfd, size_pointer, sizeof(int), 0)) > 0) {
-			if (rv < 0) {
+			if (rv < 0 || rv >= 4) {
 				break;
 			}
+			printf("received: %d bytes\n", rv);
 			// send reply
 			// printf("server replying to client: %s\n", msg);
 			// send(sessfd, msg, strlen(msg), 0);	// should check return value
@@ -62,14 +63,16 @@ int main(int argc, char**argv) {
 		printf("server: total size is: %d\n", total_length);
 
 		char *buf = malloc(total_length);
-		while ( (rv=recv(sessfd, buf, total_length, 0)) > 0) {
+		char *mark = buf;
+		while ( (rv=recv(sessfd, buf, total_length - 4, 0)) > 0) {
 			// send reply
 			// printf("server replying to client: %s\n", msg);
 			// send(sessfd, msg, strlen(msg), 0);	// should check return value
 			printf("%s", buf);
+			buf += rv;
 
 		}
-		printf("server: message is%s\n", buf);
+		printf("server: message is%s\n", mark);
 
 		char *opcode_pointer = malloc(sizeof(int));
 		int opcode = *opcode_pointer;
