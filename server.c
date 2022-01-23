@@ -76,7 +76,7 @@ int main(int argc, char**argv) {
 		}
 
 		char *opcode_pointer = malloc(sizeof(int));
-		int opcode = *received_message;
+		int opcode = *((int *)received_message);
 		printf("opcode is %d\n", opcode);
 		// either client closed connection, or error
 		
@@ -89,6 +89,12 @@ int main(int argc, char**argv) {
 			char *pathname = malloc(pathname_size);
 			memcpy(pathname, (received_message + 2), pathname_size * sizeof(char));
 			printf("pathname is :%s\n", pathname);
+			int received_flag = *((int *)received_message + 1 + pathname_size);
+			printf("flag is %d\n", received_flag);
+			int received_mode = *((int *)received_message + 2 + pathname_size);
+			printf("mode is %d\n", received_mode);
+			// int fd = open(pathname, received_flag, received_mode);
+
 		}
 
 		close(sessfd);

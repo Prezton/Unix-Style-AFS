@@ -111,8 +111,9 @@ void send_message(char *buf, int total_length) {
 	if (rv < 0) {
 		err(1, 0);
 	}
+	// send out total length
 	rv = send(sockfd, buf, strlen(buf), 0);
-	printf("length is: %lu\n", strlen(buf));
+	// send out parameters packed in buf
 	rv = send(sockfd, (buf + 1), total_length, 0);
 	orig_close(sockfd);
 }
@@ -129,7 +130,7 @@ int open(const char *pathname, int flags, ...) {
 	// we just print a message, then call through to the original open function (from libc)
 	// fprintf(stderr, "mylib: open called for path %s\n", pathname);
 	// assign opcode of "open" as 0
-	int opcode = 0;
+	int opcode = 66;
 	int starter = 0;
 
 	// overall size of message
@@ -151,7 +152,6 @@ int open(const char *pathname, int flags, ...) {
 	// set pathname
 	memcpy(message + starter, pathname, pathname_size);
 	starter += pathname_size;
-
 	// set flag
 	memcpy(message + starter, &flags, sizeof(int));
 	starter += sizeof(int);
@@ -159,8 +159,7 @@ int open(const char *pathname, int flags, ...) {
 	memcpy(message + starter, &m, sizeof(mode_t));
 	starter += sizeof(mode_t);
     // send message to server, indicating type of operation
-	// connect_message(message);
-	// send_message(message, total_length);
+	printf("open parameters are: %s, %d, %d", pathname, flags, m);
 	send_message(message, total_length);
 	return orig_open(pathname, flags, m);
 }
