@@ -49,37 +49,50 @@ int main(int argc, char**argv) {
 		if (sessfd<0) err(1,0);
 		// char *buf;
 		char *size_pointer = malloc(sizeof(int));
+		int bytes_received = 0;
 		// get messages and send replies to this client, until it goes away
 		while ( (rv=recv(sessfd, size_pointer, sizeof(int), 0)) > 0) {
 			if (rv < 0 || rv >= 4) {
 				break;
 			}
 			printf("received: %d bytes\n", rv);
-			// send reply
-			// printf("server replying to client: %s\n", msg);
-			// send(sessfd, msg, strlen(msg), 0);	// should check return value
 		}
 		int total_length = *size_pointer;
 		printf("server: total size is: %d\n", total_length);
 
 		char *buf = malloc(total_length);
-		char *mark = buf;
-		while ( (rv=recv(sessfd, buf, total_length - 4, 0)) > 0) {
-			// send reply
-			// printf("server replying to client: %s\n", msg);
-			// send(sessfd, msg, strlen(msg), 0);	// should check return value
-			printf("%s", buf);
-			buf += rv;
-
+		char *received_message = malloc(total_length);
+		bytes_received = 0;
+		while ( (rv=recv(sessfd, buf, total_length, 0)) > 0) {
+			// check validity
+			if (rv<0) err(1,0);
+			// create message from buf
+			memcpy(received_message + bytes_received, buf, rv);
+			bytes_received += rv;
+			// enough bytes have been received
+			if (bytes_received >= total_length) {
+				break;
+			}
 		}
-		printf("server: message is%s\n", mark);
 
 		char *opcode_pointer = malloc(sizeof(int));
-		int opcode = *opcode_pointer;
+		int opcode = *received_message;
+		printf("opcode is %d\n", opcode);
 		// either client closed connection, or error
-		if (rv<0) err(1,0);
-		close(sessfd);
+		
+		if (opcode == 66) {
+			// "open"
+			// message protocol:
+			// opcode + pathname size + pathname + flag + mode_t
+			int pathname_size = *((int *)received_message + 1);
+			printf("pathname size is: %d\n", pathname_size);
+			char *pathname = malloc(pathname_size);
+			memcpy(pathname, (received_message + 2), pathname_size * sizeof(char));
+			printf("pathname is :%s\n", pathname);
+		}
 
+		close(sessfd);
+		free(buf);
 		free (size_pointer);
 		free(opcode_pointer);
 	}
