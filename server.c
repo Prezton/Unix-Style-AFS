@@ -49,6 +49,7 @@ int main(int argc, char**argv) {
 		sessfd = accept(sockfd, (struct sockaddr *)&cli, &sa_size);
 		if (sessfd<0) err(1,0);
 		// char *buf;
+		char *size_pointer = malloc(sizeof(int));
 		// get messages and send replies to this client, until it goes away
 		while ( (rv=recv(sessfd, buf, MAXMSGLEN, 0)) > 0) {
 			buf[rv]=0;		// null terminate string to print
@@ -57,6 +58,8 @@ int main(int argc, char**argv) {
 			// printf("server replying to client: %s\n", msg);
 			// send(sessfd, msg, strlen(msg), 0);	// should check return value
 		}
+		int total_size = *((int *)buf);
+		printf("server: total size is: %d\n", total_size);
 
 		// either client closed connection, or error
 		if (rv<0) err(1,0);

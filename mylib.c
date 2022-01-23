@@ -70,8 +70,6 @@ void connect_message(char *buf) {
 	if (rv < 0) {
 		err(1, 0);
 	}
-	printf("connect buf length: %lu \n", strlen(buf));
-
 	rv = send(sockfd, buf, strlen(buf), 0);
 	orig_close(sockfd);
 }
@@ -147,6 +145,8 @@ int open(const char *pathname, int flags, ...) {
 	// itself + opcode + pathname size + pathname + flag + mode_t
 	int total_length = 4 * sizeof(int) + strlen(pathname) + sizeof(mode_t);
 
+	memcpy(message + starter, &total_length, sizeof(int));
+	starter += sizeof(int);
 	// set opcode
 	memcpy(message + starter, &opcode, sizeof(int));
 	starter += sizeof(int);
@@ -169,8 +169,8 @@ int open(const char *pathname, int flags, ...) {
     // send message to server, indicating type of operation
 	printf("message is: %d \n", *message);
 	// connect_message(message);
-
-	send_message(message, total_length);
+	printf("open total size is: %d", total_length);
+	connect_message(message);
 	return orig_open(pathname, flags, m);
 }
 
