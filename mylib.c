@@ -74,6 +74,7 @@ void connect_message(char *buf) {
 	orig_close(sockfd);
 }
 
+// Sending and receiving message from server
 void send_message(char *buf, int total_length) {
 	char *serverport;
 	unsigned short port;
@@ -110,18 +111,7 @@ void send_message(char *buf, int total_length) {
 	if (rv < 0) {
 		err(1, 0);
 	}
-	printf("connect buf length: %lu \n", strlen(buf));
-
-	int sent_length = 0;
-	while (sent_length < total_length) {
-		rv = send(sockfd, buf, strlen(buf), 0);
-		if (rv < 0) {
-			err(1, 0);
-			fprintf(stderr, "sending error\n");
-		}
-		sent_length += rv;
-	}
-	// rv = send(sockfd, buf, strlen(buf), 0);
+	rv = send(sockfd, buf, total_length, 0);
 	orig_close(sockfd);
 }
 
@@ -136,7 +126,6 @@ int open(const char *pathname, int flags, ...) {
 	}
 	// we just print a message, then call through to the original open function (from libc)
 	// fprintf(stderr, "mylib: open called for path %s\n", pathname);
-    char message[MAXMSGLEN];
 	// assign opcode of "open" as 0
 	int opcode = 0;
 	int starter = 0;
@@ -144,6 +133,7 @@ int open(const char *pathname, int flags, ...) {
 	// overall size of message
 	// itself + opcode + pathname size + pathname + flag + mode_t
 	int total_length = 4 * sizeof(int) + strlen(pathname) + sizeof(mode_t);
+    char message[total_length];
 
 	memcpy(message + starter, &total_length, sizeof(int));
 	starter += sizeof(int);
@@ -167,10 +157,9 @@ int open(const char *pathname, int flags, ...) {
 	memcpy(message + starter, &m, sizeof(mode_t));
 	starter += sizeof(mode_t);
     // send message to server, indicating type of operation
-	printf("message is: %d \n", *message);
 	// connect_message(message);
-	printf("open total size is: %d", total_length);
-	connect_message(message);
+	// send_message(message, total_length);
+	send_message(message, total_length);
 	return orig_open(pathname, flags, m);
 }
 

@@ -12,7 +12,6 @@
 
 int main(int argc, char**argv) {
 	char *msg="Hello from server";
-	char buf[MAXMSGLEN+1];
 	char *serverport;
 	unsigned short port;
 	int sockfd, sessfd, rv, i;
@@ -51,19 +50,35 @@ int main(int argc, char**argv) {
 		// char *buf;
 		char *size_pointer = malloc(sizeof(int));
 		// get messages and send replies to this client, until it goes away
-		while ( (rv=recv(sessfd, buf, MAXMSGLEN, 0)) > 0) {
-			buf[rv]=0;		// null terminate string to print
-			printf("%s", buf);
+		while ( (rv=recv(sessfd, size_pointer, sizeof(int), 0)) > 0) {
+			if (rv < 0) {
+				break;
+			}
 			// send reply
 			// printf("server replying to client: %s\n", msg);
 			// send(sessfd, msg, strlen(msg), 0);	// should check return value
 		}
-		int total_size = *((int *)buf);
-		printf("server: total size is: %d\n", total_size);
+		int total_length = *size_pointer;
+		printf("server: total size is: %d\n", total_length);
 
+		char *buf = malloc(total_length);
+		while ( (rv=recv(sessfd, buf, total_length, 0)) > 0) {
+			// send reply
+			// printf("server replying to client: %s\n", msg);
+			// send(sessfd, msg, strlen(msg), 0);	// should check return value
+			printf("%s", buf);
+
+		}
+		printf("server: message is%s\n", buf);
+
+		char *opcode_pointer = malloc(sizeof(int));
+		int opcode = *opcode_pointer;
 		// either client closed connection, or error
 		if (rv<0) err(1,0);
 		close(sessfd);
+
+		free (size_pointer);
+		free(opcode_pointer);
 	}
 	
 	// close socket
