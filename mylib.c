@@ -156,6 +156,13 @@ int open(const char *pathname, int flags, ...) {
 	// set opcode
 	memcpy(message + starter, &opcode, sizeof(int));
 	starter += sizeof(int);
+	// set flag
+	memcpy(message + starter, &flags, sizeof(int));
+	starter += sizeof(int);
+	// set mode_t
+	memcpy(message + starter, &m, sizeof(mode_t));
+	starter += sizeof(mode_t);
+    // send message to server, indicating type of operation
 
 	// set header (size) of pathname
 	int pathname_size = strlen(pathname);
@@ -165,13 +172,7 @@ int open(const char *pathname, int flags, ...) {
 	// set pathname
 	memcpy(message + starter, pathname, pathname_size);
 	starter += pathname_size;
-	// set flag
-	memcpy(message + starter, &flags, sizeof(int));
-	starter += sizeof(int);
-	// set mode_t
-	memcpy(message + starter, &m, sizeof(mode_t));
-	starter += sizeof(mode_t);
-    // send message to server, indicating type of operation
+	
 	printf("open parameters are: %s, %d, %d\n", pathname, flags, m);
 	send_message(message, total_length);
 	return orig_open(pathname, flags, m);
@@ -256,5 +257,4 @@ void _init(void) {
 	orig_freedirtree = dlsym(RTLD_NEXT, "freedirtree");
 	// fprintf(stderr, "Init mylib\n");
 }
-
 
