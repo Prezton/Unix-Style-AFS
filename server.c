@@ -65,7 +65,10 @@ int main(int argc, char**argv) {
 		bytes_received = 0;
 		while ( (rv=recv(sessfd, buf, total_length, 0)) > 0) {
 			// check validity
-			if (rv<0) err(1,0);
+			if (rv<0) {
+				err(1,0);
+				fprintf(stderr, "receive message error\n");
+			};
 			// create message from buf
 			memcpy(received_message + bytes_received, buf, rv);
 			bytes_received += rv;

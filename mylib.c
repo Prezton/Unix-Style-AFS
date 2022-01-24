@@ -112,9 +112,9 @@ void send_message(char *buf, int total_length) {
 		err(1, 0);
 	}
 	// send out total length
-	rv = send(sockfd, buf, strlen(buf), 0);
+	// rv = send(sockfd, buf, strlen(buf), 0);
 	// send out parameters packed in buf
-	rv = send(sockfd, (buf + 1), total_length, 0);
+	rv = send(sockfd, (buf), total_length, 0);
 	orig_close(sockfd);
 }
 
@@ -134,8 +134,8 @@ int open(const char *pathname, int flags, ...) {
 	int starter = 0;
 
 	// overall size of message
-	// opcode + pathname size + pathname + flag + mode_t
-	int total_length = 3 * sizeof(int) + strlen(pathname) + sizeof(mode_t);
+	// itself + opcode + pathname size + pathname + flag + mode_t
+	int total_length = 4 * sizeof(int) + strlen(pathname) + sizeof(mode_t);
     char message[total_length];
 
 	memcpy(message + starter, &total_length, sizeof(int));
