@@ -83,7 +83,6 @@ void send_message(char *buf, int total_length) {
 
 	// Get environment variable indicating the ip/port of the server
 	serverip = getenv("server15440");
-	// printf("it is %s\n", serverip);
 	serverport = getenv("serverport15440");
 	if (serverport) port = (unsigned short)atoi(serverport);
 	else port=18440;
@@ -107,14 +106,28 @@ void send_message(char *buf, int total_length) {
 	srv.sin_port = htons(port);			// server port
 
 	rv = connect(sockfd, (struct sockaddr*)&srv, sizeof(struct sockaddr));
+
 	// Check the return value to make sure connection succeeds.
 	if (rv < 0) {
 		err(1, 0);
 	}
-	// send out total length
-	// rv = send(sockfd, buf, strlen(buf), 0);
+
 	// send out parameters packed in buf
 	rv = send(sockfd, (buf), total_length, 0);
+
+	// // receive from the server of return values
+	// // message protocol: total_return_size + return message
+	// char *size_pointer = malloc(sizeof(int));
+	// while ( (rv=recv(sockfd, size_pointer, sizeof(int), 0)) > 0) {
+	// 	if (rv < 0 || rv >= 4) {
+	// 		break;
+	// 	}
+	// 	printf("received: %d bytes\n", rv);
+	// }
+	// int reply_size = *size_pointer;
+
+	// printf("reply size is %d", reply_size);
+
 	orig_close(sockfd);
 }
 
@@ -133,7 +146,7 @@ int open(const char *pathname, int flags, ...) {
 	int opcode = 66;
 	int starter = 0;
 
-	// overall size of message
+	// overall size of message, protocol:
 	// itself + opcode + pathname size + pathname + flag + mode_t
 	int total_length = 4 * sizeof(int) + strlen(pathname) + sizeof(mode_t);
     char message[total_length];
@@ -159,7 +172,7 @@ int open(const char *pathname, int flags, ...) {
 	memcpy(message + starter, &m, sizeof(mode_t));
 	starter += sizeof(mode_t);
     // send message to server, indicating type of operation
-	printf("open parameters are: %s, %d, %d", pathname, flags, m);
+	printf("open parameters are: %s, %d, %d\n", pathname, flags, m);
 	send_message(message, total_length);
 	return orig_open(pathname, flags, m);
 }

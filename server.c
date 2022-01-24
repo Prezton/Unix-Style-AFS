@@ -7,6 +7,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <err.h>
+#include <errno.h>
+#include <fcntl.h>
+
+
 
 #define MAXMSGLEN 100
 
@@ -96,8 +100,22 @@ int main(int argc, char**argv) {
 			printf("flag is %d\n", received_flag);
 			int received_mode = *((int *)received_message + 2 + pathname_size);
 			printf("mode is %d\n", received_mode);
-			// int fd = open(pathname, received_flag, received_mode);
 
+			// // make procedure call
+			// int fd = open(pathname, received_flag, received_mode);
+			// int err_num = errno;
+
+			// // send return value header back
+			// char *reply_size = malloc(sizeof(int));
+			// int return_size = 2 * sizeof(int);
+			// memcpy(reply_size, &return_size, sizeof(int));
+			// send(sessfd, reply_size, sizeof(int), 0);
+
+			// // send return value back
+			// char *reply_message = malloc(2 * sizeof(int));
+			// memcpy(reply_message, &fd, sizeof(int));
+			// memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
+			// send(sessfd, reply_message, 2 * sizeof(int), 0);
 		}
 
 		close(sessfd);
