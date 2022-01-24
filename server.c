@@ -90,32 +90,36 @@ int main(int argc, char**argv) {
 		if (opcode == 66) {
 			// "open"
 			// message protocol:
-			// opcode + pathname size + pathname + flag + mode_t
-			int pathname_size = *((int *)received_message + 1);
-			printf("pathname size is: %d\n", pathname_size);
-			char *pathname = malloc(pathname_size);
-			memcpy(pathname, (received_message + 2), pathname_size * sizeof(char));
-			printf("pathname is :%s\n", pathname);
-			int received_flag = *((int *)received_message + 1 + pathname_size);
+			// opcode + flag + mode_t + pathname size + pathname
+
+			int received_flag = *((int *)received_message + 1);
 			printf("flag is %d\n", received_flag);
-			int received_mode = *((int *)received_message + 2 + pathname_size);
+			int received_mode = *((int *)received_message + 2);
 			printf("mode is %d\n", received_mode);
 
-			// // make procedure call
-			// int fd = open(pathname, received_flag, received_mode);
-			// int err_num = errno;
+			int pathname_size = *((int *)received_message + 3);
+			printf("pathname size is: %d\n", pathname_size);
+			char *pathname = malloc(pathname_size + 1);
+			memcpy(pathname, (received_message + 12 + sizeof(mode_t)), pathname_size * sizeof(char));
+			// strcpy(pathname, (received_message+4));
+			strcpy(pathname + pathname_size, "\0");
+			printf("pathname is :%s\n", pathname);
+			
+			// make procedure call
+			int fd = open(pathname, received_flag, received_mode);
+			int err_num = errno;
 
-			// // send return value header back
-			// char *reply_size = malloc(sizeof(int));
-			// int return_size = 2 * sizeof(int);
-			// memcpy(reply_size, &return_size, sizeof(int));
-			// send(sessfd, reply_size, sizeof(int), 0);
+			// send return value header back
+			char *reply_size = malloc(sizeof(int));
+			int return_size = 2 * sizeof(int);
+			memcpy(reply_size, &return_size, sizeof(int));
+			send(sessfd, reply_size, sizeof(int), 0);
 
-			// // send return value back
-			// char *reply_message = malloc(2 * sizeof(int));
-			// memcpy(reply_message, &fd, sizeof(int));
-			// memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
-			// send(sessfd, reply_message, 2 * sizeof(int), 0);
+			// send return value back
+			char *reply_message = malloc(2 * sizeof(int));
+			memcpy(reply_message, &fd, sizeof(int));
+			memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
+			send(sessfd, reply_message, 2 * sizeof(int), 0);
 		}
 
 		close(sessfd);
