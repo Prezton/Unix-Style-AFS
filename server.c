@@ -105,21 +105,30 @@ int main(int argc, char**argv) {
 			strcpy(pathname + pathname_size, "\0");
 			printf("pathname is :%s\n", pathname);
 			
-			// make procedure call
-			int fd = open(pathname, received_flag, received_mode);
-			int err_num = errno;
+			// // make procedure call
+			// int fd = open(pathname, received_flag, received_mode);
+			// int err_num = errno;
 
-			// send return value header back
-			char *reply_size = malloc(sizeof(int));
-			int return_size = 2 * sizeof(int);
-			memcpy(reply_size, &return_size, sizeof(int));
-			send(sessfd, reply_size, sizeof(int), 0);
+			// // send return value header back
+			// char *reply_size = malloc(sizeof(int));
+			// int return_size = 2 * sizeof(int);
+			// memcpy(reply_size, &return_size, sizeof(int));
+			// send(sessfd, reply_size, sizeof(int), 0);
 
-			// send return value back
-			char *reply_message = malloc(2 * sizeof(int));
-			memcpy(reply_message, &fd, sizeof(int));
-			memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
-			send(sessfd, reply_message, 2 * sizeof(int), 0);
+			// // send return value back
+			// char *reply_message = malloc(2 * sizeof(int));
+			// memcpy(reply_message, &fd, sizeof(int));
+			// memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
+			// send(sessfd, reply_message, 2 * sizeof(int), 0);
+		} else if (opcode == 67) {
+			printf("close\n");
+		} else if (opcode == 68) {
+			printf("read\n");
+		} else if (opcode == 69) {
+			printf("write\n");
+		} 
+		else {
+			printf("others: opcode is: %d\n", opcode);
 		}
 
 		close(sessfd);
@@ -133,4 +142,3 @@ int main(int argc, char**argv) {
 
 	return 0;
 }
-
