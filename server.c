@@ -49,7 +49,7 @@ int main(int argc, char**argv) {
 	// main server loop, handle clients one at a time, quit after 10 clients
 	while (1) {
 		// wait for next client, get session socket
-		printf("test1\n");
+		printf("SERVER MAIN LOOP START\n");
 		sessfd = accept(sockfd, (struct sockaddr *)&cli, &sa_size);
 		if (sessfd<0) err(1,0);
 		// char *buf;
@@ -60,20 +60,20 @@ int main(int argc, char**argv) {
 			if (rv < 0 || rv >= 4) {
 				break;
 			}
-			printf("received: %d bytes\n", rv);
+			// printf("received: %d bytes\n", rv);
 		}
 		// recv(sessfd, size_pointer, sizeof(int), 0);
 		int total_length = *size_pointer;
 		// subtract total_length itself
 		total_length -= sizeof(int);
-		printf("server: total size is: %d\n", total_length);
+		printf("server: received: %d bytes\n", total_length);
 
 		char *buf = malloc(total_length);
 		char *received_message = malloc(total_length);
 		bytes_received = 0;
 		while ( (rv=recv(sessfd, buf, total_length, 0)) > 0) {
 			// check validity
-			printf("stuck");
+			// printf("stuck");
 			if (rv<0) {
 				err(1,0);
 				fprintf(stderr, "receive message error\n");
@@ -89,26 +89,26 @@ int main(int argc, char**argv) {
 
 		char *opcode_pointer = malloc(sizeof(int));
 		int opcode = *((int *)received_message);
-		printf("opcode is %d\n", opcode);
+		// printf("opcode is %d\n", opcode);
 		// either client closed connection, or error
 		
 		if (opcode == 66) {
 			// "open"
 			// message protocol:
 			// opcode + flag + mode_t + pathname size + pathname
-
+			printf("open\n");
 			int received_flag = *((int *)received_message + 1);
-			printf("flag is %d\n", received_flag);
+			// printf("flag is %d\n", received_flag);
 			int received_mode = *((int *)received_message + 2);
-			printf("mode is %d\n", received_mode);
+			// printf("mode is %d\n", received_mode);
 
 			int pathname_size = *((int *)received_message + 3);
-			printf("pathname size is: %d\n", pathname_size);
+			// printf("pathname size is: %d\n", pathname_size);
 			char *pathname = malloc(pathname_size + 1);
 			memcpy(pathname, (received_message + 12 + sizeof(mode_t)), pathname_size * sizeof(char));
 			// strcpy(pathname, (received_message+4));
 			strcpy(pathname + pathname_size, "\0");
-			printf("pathname is :%s\n", pathname);
+			printf("pathname is: %s\n", pathname);
 			
 			// make procedure call
 			int fd = open(pathname, received_flag, received_mode);
@@ -129,7 +129,7 @@ int main(int argc, char**argv) {
 		} else if (opcode == 67) {
 			printf("close\n");
 			int received_fd = *((int *)received_message + 1);
-			printf("close received fd is %d\n", received_fd);
+			// printf("close received fd is %d\n", received_fd);
 			int result = close(received_fd);
 			int err_num = errno;
 			// send return value header back
@@ -145,9 +145,41 @@ int main(int argc, char**argv) {
 			send(sessfd, reply_message, 2 * sizeof(int), 0);
 
 		} else if (opcode == 68) {
-			printf("read\n");
+			// printf("read\n");
 		} else if (opcode == 69) {
+			// "write", opcode == 69
+			// message protocol: 
+			// itself + opcode + fd + count + buf size + buf
 			printf("write\n");
+
+			int received_fd = *((int *)received_message + 1);
+			// printf("fd is %d\n", received_fd);
+			size_t received_count = *((size_t *)received_message + 2);
+			// printf("count is %lu\n", received_count);
+
+			int buf_size = *((int *)received_message + 3);
+			// printf("buf size is: %d\n", buf_size);
+			char *buf = malloc(buf_size + 1);
+			memcpy(buf, (received_message + 12 + sizeof(size_t)), buf_size * sizeof(char));
+			// strcpy(pathname, (received_message+4));
+			strcpy(buf + buf_size, "\0");
+			printf("buf is :%s\n", buf);
+			
+			// make procedure call
+			int num_write = write(received_fd, buf, received_count);
+			int err_num = errno;
+
+			// send return value header back
+			char *reply_size = malloc(sizeof(int));
+			int return_size = 2 * sizeof(int);
+			memcpy(reply_size, &return_size, sizeof(int));
+			send(sessfd, reply_size, sizeof(int), 0);
+
+			// send return value back
+			char *reply_message = malloc(2 * sizeof(int));
+			memcpy(reply_message, &num_write, sizeof(int));
+			memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
+			send(sessfd, reply_message, 2 * sizeof(int), 0);
 		} 
 		else {
 			printf("others: opcode is: %d\n", opcode);

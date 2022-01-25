@@ -60,21 +60,21 @@ char *send_message(char *buf, int total_length) {
 	// message protocol: total_return_size + return message
 	char *size_pointer = malloc(sizeof(int));
 	while ( (rv=recv(sockfd, size_pointer, sizeof(int), 0)) > 0) {
-		printf("in receive\n");
+		// printf("in receive\n");
 		if (rv < 0 || rv >= 4) {
-			printf("err or not received: %d bytes\n", rv);
+			// printf("err or not received: %d bytes\n", rv);
 			break;
 		}
 	}
 	int reply_size = *size_pointer;
 
-	printf("reply size is %d\n", reply_size);
+	// printf("reply size is %d\n", reply_size);
 	char *reply_message = malloc(reply_size);
 	int bytes_received = 0;
 	while ( (rv=recv(sockfd, reply_message, reply_size, 0)) > 0) {
 		bytes_received += rv;
 		if (rv < 0 || bytes_received >= reply_size) {
-			printf("err or not received: %d bytes\n", rv);
+			// printf("err or not received: %d bytes\n", rv);
 			break;
 		}
 	}
@@ -124,12 +124,12 @@ int open(const char *pathname, int flags, ...) {
 	memcpy(message + starter, pathname, pathname_size);
 	starter += pathname_size;
 	
-	printf("open parameters are: %s, %d, %d\n", pathname, flags, m);
+	printf("client called open: pathname %s, flags %d, mode %d\n", pathname, flags, m);
 	char *received_message = send_message(message, total_length);
 
 	int received_fd = *received_message;
 	int received_errno = *(received_message + 1);
-	printf("open: %d, %d !!\n", received_fd, received_errno);
+	printf("client received from open call: fd %d, errno %d !!\n", received_fd, received_errno);
 	// return orig_open(pathname, flags, m);
 	if (received_fd < 0) {
 		errno = received_errno;
@@ -153,10 +153,12 @@ int close(int fd) {
 	memcpy(message + starter, &fd, sizeof(int));
 	starter += sizeof(int);
 
+	printf("client called close: length %d, opcode %d, fd %d\n", total_length, opcode, fd);
+
 	char *received_message = send_message(message, total_length);
 	int result = *received_message;
 	int received_errno = *(received_message + 1);
-	printf("close: %d, %d !!\n", result, received_errno);
+	printf("client received from close call: result %d, errno %d !!\n", result, received_errno);
 
 	if (result != 0) {
 		errno = received_errno;
@@ -170,15 +172,54 @@ int close(int fd) {
 }
 
 ssize_t read(int fd, void *buf, size_t count) {
-	char *message = "read\n";
+	// char *message = "read\n";
 	// connect_message(message);
 	return orig_read(fd, buf, count);
 }
 
 ssize_t write (int fd, const void *buf, size_t count) {
-	char *message = "write\n";
-	// connect_message(message);
-	return orig_write(fd, buf, count);
+	// assign opcode of "write" as 69
+	int opcode = 69;
+	int starter = 0;
+
+	// overall size of message, protocol:
+	// itself + opcode + fd + count + buf size + buf
+	int total_length = 4 * sizeof(int) + strlen(buf) + sizeof(size_t);
+    char message[total_length];
+
+	memcpy(message + starter, &total_length, sizeof(int));
+	starter += sizeof(int);
+	// set opcode
+	memcpy(message + starter, &opcode, sizeof(int));
+	starter += sizeof(int);
+	// set fd
+	memcpy(message + starter, &fd, sizeof(int));
+	starter += sizeof(int);
+	// set count
+	memcpy(message + starter, &count, sizeof(mode_t));
+	starter += sizeof(size_t);
+    // send message to server, indicating type of operation
+
+	// set header (size) of buf
+	int buf_size = strlen(buf);
+	memcpy(message + starter, &buf_size, sizeof(int));
+	starter += sizeof(int);
+
+	// set buf
+	memcpy(message + starter, buf, buf_size);
+	starter += buf_size;
+
+	printf("client called write: buf %s, fd %d, count %lu\n", buf, fd, count);
+	char *received_message = send_message(message, total_length);
+	int received_write_num = *received_message;
+	int received_errno = *(received_message + 1);
+	if (received_write_num == -1) {
+		errno = received_errno;
+	}
+	printf("client received from write call: bytes written %d, errno %d !!\n", received_write_num, received_errno);
+
+	return received_write_num;
+
 }
 
 off_t lseek(int fd, off_t offset, int whence) {
