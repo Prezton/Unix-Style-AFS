@@ -129,7 +129,7 @@ int open(const char *pathname, int flags, ...) {
 
 	int received_fd = *received_message;
 	int received_errno = *(received_message + 1);
-	printf("%d, %d !!", received_fd, received_errno);
+	printf("open: %d, %d !!\n", received_fd, received_errno);
 	// return orig_open(pathname, flags, m);
 	if (received_fd < 0) {
 		errno = received_errno;
@@ -153,12 +153,20 @@ int close(int fd) {
 	memcpy(message + starter, &fd, sizeof(int));
 	starter += sizeof(int);
 
-	// send_message(message, total_length);
+	char *received_message = send_message(message, total_length);
+	int result = *received_message;
+	int received_errno = *(received_message + 1);
+	printf("close: %d, %d !!\n", result, received_errno);
+
+	if (result != 0) {
+		errno = received_errno;
+	}
+	return result;
 
 
 	// char *message = "close\n";
 	// connect_message(message);
-	return orig_close(fd);
+	// return orig_close(fd);
 }
 
 ssize_t read(int fd, void *buf, size_t count) {

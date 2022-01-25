@@ -128,6 +128,22 @@ int main(int argc, char**argv) {
 			
 		} else if (opcode == 67) {
 			printf("close\n");
+			int received_fd = *((int *)received_message + 1);
+			printf("close received fd is %d\n", received_fd);
+			int result = close(received_fd);
+			int err_num = errno;
+			// send return value header back
+			char *reply_size = malloc(sizeof(int));
+			int return_size = 2 * sizeof(int);
+			memcpy(reply_size, &return_size, sizeof(int));
+			send(sessfd, reply_size, sizeof(int), 0);
+
+			// send return value back
+			char *reply_message = malloc(2 * sizeof(int));
+			memcpy(reply_message, &result, sizeof(int));
+			memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
+			send(sessfd, reply_message, 2 * sizeof(int), 0);
+
 		} else if (opcode == 68) {
 			printf("read\n");
 		} else if (opcode == 69) {
