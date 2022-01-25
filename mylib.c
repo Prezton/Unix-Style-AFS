@@ -183,7 +183,7 @@ ssize_t write (int fd, const void *buf, size_t count) {
 	int starter = 0;
 
 	// overall size of message, protocol:
-	// itself + opcode + fd + count + buf size + buf
+	// itself + opcode + fd + buf size + count + buf
 	int total_length = 4 * sizeof(int) + strlen(buf) + sizeof(size_t);
     char message[total_length];
 
@@ -195,19 +195,21 @@ ssize_t write (int fd, const void *buf, size_t count) {
 	// set fd
 	memcpy(message + starter, &fd, sizeof(int));
 	starter += sizeof(int);
-	// set count
-	memcpy(message + starter, &count, sizeof(mode_t));
-	starter += sizeof(size_t);
-    // send message to server, indicating type of operation
 
 	// set header (size) of buf
 	int buf_size = strlen(buf);
 	memcpy(message + starter, &buf_size, sizeof(int));
 	starter += sizeof(int);
 
+	// set count
+	memcpy(message + starter, &count, sizeof(mode_t));
+	starter += sizeof(size_t);
+
 	// set buf
 	memcpy(message + starter, buf, buf_size);
 	starter += buf_size;
+
+    // send message to server, indicating type of operation
 
 	printf("client called write: buf %s, fd %d, count %lu\n", buf, fd, count);
 	char *received_message = send_message(message, total_length);

@@ -45,13 +45,13 @@ int main(int argc, char**argv) {
 	rv = listen(sockfd, 5);
 	if (rv<0) err(1,0);
 	sa_size = sizeof(struct sockaddr_in);
-
+	sessfd = accept(sockfd, (struct sockaddr *)&cli, &sa_size);
+	if (sessfd<0) err(1,0);
 	// main server loop, handle clients one at a time, quit after 10 clients
 	while (1) {
 		// wait for next client, get session socket
 		printf("SERVER MAIN LOOP START\n");
-		sessfd = accept(sockfd, (struct sockaddr *)&cli, &sa_size);
-		if (sessfd<0) err(1,0);
+
 		// char *buf;
 		char *size_pointer = malloc(sizeof(int));
 		int bytes_received = 0;
@@ -149,18 +149,27 @@ int main(int argc, char**argv) {
 		} else if (opcode == 69) {
 			// "write", opcode == 69
 			// message protocol: 
-			// itself + opcode + fd + count + buf size + buf
+			// itself + opcode + fd + buf size + count + buf
 			printf("write\n");
 
 			int received_fd = *((int *)received_message + 1);
-			// printf("fd is %d\n", received_fd);
-			size_t received_count = *((size_t *)received_message + 2);
-			// printf("count is %lu\n", received_count);
+			printf("fd is %d\n", received_fd);
+			// size_t received_count = *((size_t *)received_message + 2);
 
-			int buf_size = *((int *)received_message + 3);
-			// printf("buf size is: %d\n", buf_size);
+			int buf_size = *((int *)received_message + 2);
+			printf("buf size is: %d\n", buf_size);
+
+			char *count_pointer = malloc(sizeof(size_t));
+			memcpy(count_pointer, received_message + 2 * sizeof(int), sizeof(size_t));
+			size_t received_count = *count_pointer;
+
+			printf("count is %lu\n", received_count);
+			printf("toggle1\n");
+
 			char *buf = malloc(buf_size + 1);
 			memcpy(buf, (received_message + 12 + sizeof(size_t)), buf_size * sizeof(char));
+			printf("toggle2\n");
+
 			// strcpy(pathname, (received_message+4));
 			strcpy(buf + buf_size, "\0");
 			printf("buf is :%s\n", buf);
@@ -185,7 +194,7 @@ int main(int argc, char**argv) {
 			printf("others: opcode is: %d\n", opcode);
 		}
 
-		close(sessfd);
+		// close(sessfd);
 		free(buf);
 		free (size_pointer);
 		free(opcode_pointer);
