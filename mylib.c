@@ -15,6 +15,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <err.h>
+#include <errno.h>
 // #include <messages_info.h>
 
 // The following line declares a function pointer with the same prototype as the open function.  
@@ -32,103 +33,53 @@ void (*orig_freedirtree)( struct dirtreenode* dt );
 
 #define MAXMSGLEN 200
 
+char *serverport;
+unsigned short port;
+int sockfd;
+char *serverip;
 
 // Sending and receiving message from server
 void connect_message(char *buf) {
-	char *serverport;
-	unsigned short port;
-	int sockfd, rv;
-	char *serverip;
 
-	// Get environment variable indicating the ip/port of the server
-	serverip = getenv("server15440");
-	// printf("it is %s\n", serverip);
-	serverport = getenv("serverport15440");
-	if (serverport) port = (unsigned short)atoi(serverport);
-	else port=18440;
-	if (serverip == NULL) {
-		serverip = "127.0.0.1";
-	}
-
-	// Create socket
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
-	if (sockfd<0) err(1, 0);			// in case of error
-
-	struct sockaddr_in srv;
-	// setup address structure to indicate server port
-
-	memset(&srv, 0, sizeof(srv));			// clear it first
-
-	srv.sin_family = AF_INET;			// IP family
-
-	srv.sin_addr.s_addr = inet_addr(serverip);	// server IP address
-
-	srv.sin_port = htons(port);			// server port
-
-	rv = connect(sockfd, (struct sockaddr*)&srv, sizeof(struct sockaddr));
-	// Check the return value to make sure connection succeeds.
+	int rv = send(sockfd, buf, strlen(buf), 0);
 	if (rv < 0) {
-		err(1, 0);
+		fprintf(stderr, "error in sending\n");
 	}
-	rv = send(sockfd, buf, strlen(buf), 0);
-	orig_close(sockfd);
+	// orig_close(sockfd);
 }
 
 // Sending and receiving message from server
-void send_message(char *buf, int total_length) {
-	char *serverport;
-	unsigned short port;
-	int sockfd, rv;
-	char *serverip;
-
-	// Get environment variable indicating the ip/port of the server
-	serverip = getenv("server15440");
-	serverport = getenv("serverport15440");
-	if (serverport) port = (unsigned short)atoi(serverport);
-	else port=18440;
-	if (serverip == NULL) {
-		serverip = "127.0.0.1";
-	}
-
-	// Create socket
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
-	if (sockfd<0) err(1, 0);			// in case of error
-
-	struct sockaddr_in srv;
-	// setup address structure to indicate server port
-
-	memset(&srv, 0, sizeof(srv));			// clear it first
-
-	srv.sin_family = AF_INET;			// IP family
-
-	srv.sin_addr.s_addr = inet_addr(serverip);	// server IP address
-
-	srv.sin_port = htons(port);			// server port
-
-	rv = connect(sockfd, (struct sockaddr*)&srv, sizeof(struct sockaddr));
-
-	// Check the return value to make sure connection succeeds.
-	if (rv < 0) {
-		err(1, 0);
-	}
+char *send_message(char *buf, int total_length) {
 
 	// send out parameters packed in buf
-	rv = send(sockfd, (buf), total_length, 0);
+	int rv = send(sockfd, (buf), total_length, 0);
+	if (rv < 0) {
+		fprintf(stderr, "error in sending\n");
+	}
+	// receive from the server of return values
+	// message protocol: total_return_size + return message
+	char *size_pointer = malloc(sizeof(int));
+	while ( (rv=recv(sockfd, size_pointer, sizeof(int), 0)) > 0) {
+		printf("in receive\n");
+		if (rv < 0 || rv >= 4) {
+			printf("err or not received: %d bytes\n", rv);
+			break;
+		}
+	}
+	int reply_size = *size_pointer;
 
-	// // receive from the server of return values
-	// // message protocol: total_return_size + return message
-	// char *size_pointer = malloc(sizeof(int));
-	// while ( (rv=recv(sockfd, size_pointer, sizeof(int), 0)) > 0) {
-	// 	if (rv < 0 || rv >= 4) {
-	// 		break;
-	// 	}
-	// 	printf("received: %d bytes\n", rv);
-	// }
-	// int reply_size = *size_pointer;
-
-	// printf("reply size is %d", reply_size);
-
-	orig_close(sockfd);
+	printf("reply size is %d\n", reply_size);
+	char *reply_message = malloc(reply_size);
+	int bytes_received = 0;
+	while ( (rv=recv(sockfd, reply_message, reply_size, 0)) > 0) {
+		bytes_received += rv;
+		if (rv < 0 || bytes_received >= reply_size) {
+			printf("err or not received: %d bytes\n", rv);
+			break;
+		}
+	}
+	return reply_message;
+	// orig_close(sockfd);
 }
 
 // This is our replacement for the open function from libc.
@@ -147,7 +98,7 @@ int open(const char *pathname, int flags, ...) {
 	int starter = 0;
 
 	// overall size of message, protocol:
-	// itself + opcode + pathname size + pathname + flag + mode_t
+	// itself + opcode + flag + mode_t + pathname size + pathname
 	int total_length = 4 * sizeof(int) + strlen(pathname) + sizeof(mode_t);
     char message[total_length];
 
@@ -174,8 +125,17 @@ int open(const char *pathname, int flags, ...) {
 	starter += pathname_size;
 	
 	printf("open parameters are: %s, %d, %d\n", pathname, flags, m);
-	send_message(message, total_length);
-	return orig_open(pathname, flags, m);
+	char *received_message = send_message(message, total_length);
+
+	int received_fd = *received_message;
+	int received_errno = *(received_message + 1);
+	printf("%d, %d !!", received_fd, received_errno);
+	// return orig_open(pathname, flags, m);
+	if (received_fd < 0) {
+		errno = received_errno;
+		return -1;
+	}
+	return received_fd;
 }
 
 int close(int fd) {
@@ -193,7 +153,7 @@ int close(int fd) {
 	memcpy(message + starter, &fd, sizeof(int));
 	starter += sizeof(int);
 
-	send_message(message, total_length);
+	// send_message(message, total_length);
 
 
 	// char *message = "close\n";
@@ -203,13 +163,13 @@ int close(int fd) {
 
 ssize_t read(int fd, void *buf, size_t count) {
 	char *message = "read\n";
-	connect_message(message);
+	// connect_message(message);
 	return orig_read(fd, buf, count);
 }
 
 ssize_t write (int fd, const void *buf, size_t count) {
 	char *message = "write\n";
-	connect_message(message);
+	// connect_message(message);
 	return orig_write(fd, buf, count);
 }
 
@@ -273,4 +233,37 @@ void _init(void) {
 	orig_getdirtree = dlsym(RTLD_NEXT, "getdirtree");
 	orig_freedirtree = dlsym(RTLD_NEXT, "freedirtree");
 	// fprintf(stderr, "Init mylib\n");
+	
+	int rv;
+
+	// Get environment variable indicating the ip/port of the server
+	serverip = getenv("server15440");
+	// printf("it is %s\n", serverip);
+	serverport = getenv("serverport15440");
+	if (serverport) port = (unsigned short)atoi(serverport);
+	else port=18440;
+	if (serverip == NULL) {
+		serverip = "127.0.0.1";
+	}
+
+	// Create socket
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
+	if (sockfd<0) err(1, 0);			// in case of error
+
+	struct sockaddr_in srv;
+	// setup address structure to indicate server port
+
+	memset(&srv, 0, sizeof(srv));			// clear it first
+
+	srv.sin_family = AF_INET;			// IP family
+
+	srv.sin_addr.s_addr = inet_addr(serverip);	// server IP address
+
+	srv.sin_port = htons(port);			// server port
+
+	rv = connect(sockfd, (struct sockaddr*)&srv, sizeof(struct sockaddr));
+	// Check the return value to make sure connection succeeds.
+	if (rv < 0) {
+		err(1, 0);
+	}
 }

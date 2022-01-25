@@ -49,6 +49,7 @@ int main(int argc, char**argv) {
 	// main server loop, handle clients one at a time, quit after 10 clients
 	while (1) {
 		// wait for next client, get session socket
+		printf("test1\n");
 		sessfd = accept(sockfd, (struct sockaddr *)&cli, &sa_size);
 		if (sessfd<0) err(1,0);
 		// char *buf;
@@ -61,7 +62,10 @@ int main(int argc, char**argv) {
 			}
 			printf("received: %d bytes\n", rv);
 		}
+		// recv(sessfd, size_pointer, sizeof(int), 0);
 		int total_length = *size_pointer;
+		// subtract total_length itself
+		total_length -= sizeof(int);
 		printf("server: total size is: %d\n", total_length);
 
 		char *buf = malloc(total_length);
@@ -69,6 +73,7 @@ int main(int argc, char**argv) {
 		bytes_received = 0;
 		while ( (rv=recv(sessfd, buf, total_length, 0)) > 0) {
 			// check validity
+			printf("stuck");
 			if (rv<0) {
 				err(1,0);
 				fprintf(stderr, "receive message error\n");
@@ -105,21 +110,22 @@ int main(int argc, char**argv) {
 			strcpy(pathname + pathname_size, "\0");
 			printf("pathname is :%s\n", pathname);
 			
-			// // make procedure call
-			// int fd = open(pathname, received_flag, received_mode);
-			// int err_num = errno;
+			// make procedure call
+			int fd = open(pathname, received_flag, received_mode);
+			int err_num = errno;
 
-			// // send return value header back
-			// char *reply_size = malloc(sizeof(int));
-			// int return_size = 2 * sizeof(int);
-			// memcpy(reply_size, &return_size, sizeof(int));
-			// send(sessfd, reply_size, sizeof(int), 0);
+			// send return value header back
+			char *reply_size = malloc(sizeof(int));
+			int return_size = 2 * sizeof(int);
+			memcpy(reply_size, &return_size, sizeof(int));
+			send(sessfd, reply_size, sizeof(int), 0);
 
-			// // send return value back
-			// char *reply_message = malloc(2 * sizeof(int));
-			// memcpy(reply_message, &fd, sizeof(int));
-			// memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
-			// send(sessfd, reply_message, 2 * sizeof(int), 0);
+			// send return value back
+			char *reply_message = malloc(2 * sizeof(int));
+			memcpy(reply_message, &fd, sizeof(int));
+			memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
+			send(sessfd, reply_message, 2 * sizeof(int), 0);
+			
 		} else if (opcode == 67) {
 			printf("close\n");
 		} else if (opcode == 68) {
