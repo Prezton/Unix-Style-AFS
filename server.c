@@ -87,7 +87,6 @@ int main(int argc, char**argv) {
 			}
 		}
 
-		char *opcode_pointer = malloc(sizeof(int));
 		int opcode = *((int *)received_message);
 		// printf("opcode is %d\n", opcode);
 		// either client closed connection, or error
@@ -197,7 +196,6 @@ int main(int argc, char**argv) {
 		// close(sessfd);
 		free(buf);
 		free (size_pointer);
-		free(opcode_pointer);
 	}
 	
 	// close socket

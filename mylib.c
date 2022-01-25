@@ -124,12 +124,12 @@ int open(const char *pathname, int flags, ...) {
 	memcpy(message + starter, pathname, pathname_size);
 	starter += pathname_size;
 	
-	printf("client called open: pathname %s, flags %d, mode %d\n", pathname, flags, m);
+	// printf("client called open: pathname %s, flags %d, mode %d\n", pathname, flags, m);
 	char *received_message = send_message(message, total_length);
 
 	int received_fd = *received_message;
 	int received_errno = *(received_message + 1);
-	printf("client received from open call: fd %d, errno %d !!\n", received_fd, received_errno);
+	// printf("client received from open call: fd %d, errno %d !!\n", received_fd, received_errno);
 	// return orig_open(pathname, flags, m);
 	if (received_fd < 0) {
 		errno = received_errno;
@@ -153,12 +153,12 @@ int close(int fd) {
 	memcpy(message + starter, &fd, sizeof(int));
 	starter += sizeof(int);
 
-	printf("client called close: length %d, opcode %d, fd %d\n", total_length, opcode, fd);
+	// printf("client called close: length %d, opcode %d, fd %d\n", total_length, opcode, fd);
 
 	char *received_message = send_message(message, total_length);
 	int result = *received_message;
 	int received_errno = *(received_message + 1);
-	printf("client received from close call: result %d, errno %d !!\n", result, received_errno);
+	// printf("client received from close call: result %d, errno %d !!\n", result, received_errno);
 
 	if (result != 0) {
 		errno = received_errno;
@@ -211,14 +211,14 @@ ssize_t write (int fd, const void *buf, size_t count) {
 
     // send message to server, indicating type of operation
 
-	printf("client called write: buf %s, fd %d, count %lu\n", buf, fd, count);
+	// printf("client called write: buf %s, fd %d, count %lu\n", buf, fd, count);
 	char *received_message = send_message(message, total_length);
 	int received_write_num = *received_message;
 	int received_errno = *(received_message + 1);
 	if (received_write_num == -1) {
 		errno = received_errno;
 	}
-	printf("client received from write call: bytes written %d, errno %d !!\n", received_write_num, received_errno);
+	// printf("client received from write call: bytes written %d, errno %d !!\n", received_write_num, received_errno);
 
 	return received_write_num;
 
