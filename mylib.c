@@ -179,8 +179,25 @@ int open(const char *pathname, int flags, ...) {
 }
 
 int close(int fd) {
-	char *message = "close\n";
-	connect_message(message);
+	int opcode = 67;
+	int total_length = 3 * sizeof(int);
+	int starter = 0;
+	// message protocol:
+	// total size + opcode + fd
+	char *message = malloc(3 * sizeof(int));
+
+	memcpy(message + starter, &total_length, sizeof(int));
+	starter += sizeof(int);
+	memcpy(message + starter, &opcode, sizeof(int));
+	starter += sizeof(int);
+	memcpy(message + starter, &fd, sizeof(int));
+	starter += sizeof(int);
+
+	send_message(message, total_length);
+
+
+	// char *message = "close\n";
+	// connect_message(message);
 	return orig_close(fd);
 }
 
@@ -257,4 +274,3 @@ void _init(void) {
 	orig_freedirtree = dlsym(RTLD_NEXT, "freedirtree");
 	// fprintf(stderr, "Init mylib\n");
 }
-
