@@ -45,39 +45,51 @@ int main(int argc, char**argv) {
 	rv = listen(sockfd, 5);
 	if (rv<0) err(1,0);
 	sa_size = sizeof(struct sockaddr_in);
-	sessfd = accept(sockfd, (struct sockaddr *)&cli, &sa_size);
-	if (sessfd<0) err(1,0);
+
 	// main server loop, handle clients one at a time, quit after 10 clients
 	while (1) {
 		// wait for next client, get session socket
-		printf("SERVER MAIN LOOP START\n");
-
+		// printf("SERVER MAIN LOOP START\n");
+		sessfd = accept(sockfd, (struct sockaddr *)&cli, &sa_size);
+		if (sessfd<0) err(1,0);
 		// char *buf;
+		while (1) {
+
 		char *size_pointer = malloc(sizeof(int));
+		char *received_size = malloc(sizeof(int));
 		int bytes_received = 0;
-		// get messages and send replies to this client, until it goes away
-		while ( (rv=recv(sessfd, size_pointer, sizeof(int), 0)) > 0) {
-			if (rv < 0 || rv >= 4) {
+
+		while ( (rv=recv(sessfd, size_pointer, sizeof(int) - bytes_received, 0)) > 0) {
+			// check validity
+
+			// create message from buf
+			memcpy(received_size + bytes_received, size_pointer, rv);
+			bytes_received += rv;
+			// enough bytes have been received
+			if (bytes_received >= sizeof(int)) {
 				break;
 			}
-			// printf("received: %d bytes\n", rv);
+		}
+		if (rv<=0) {
+			close(sessfd);
+			fprintf(stderr, "1st: receive message rv <= 0\n");
+			break;
 		}
 		// recv(sessfd, size_pointer, sizeof(int), 0);
-		int total_length = *size_pointer;
+		int total_length = *((int *)received_size);
+		if (total_length <= 0) {
+			fprintf(stderr, "rv is: %d, total length is %d, less than 0: this should not happen!!\n",rv, total_length);
+			close(sessfd);
+			break;
+		}
 		// subtract total_length itself
+		fprintf(stderr, "server: received %d bytes\n", total_length);
 		total_length -= sizeof(int);
-		printf("server: received: %d bytes\n", total_length);
 
 		char *buf = malloc(total_length);
 		char *received_message = malloc(total_length);
 		bytes_received = 0;
-		while ( (rv=recv(sessfd, buf, total_length, 0)) > 0) {
-			// check validity
-			// printf("stuck");
-			if (rv<0) {
-				err(1,0);
-				fprintf(stderr, "receive message error\n");
-			};
+		while ( (rv=recv(sessfd, buf, total_length - bytes_received, 0)) > 0) {
 			// create message from buf
 			memcpy(received_message + bytes_received, buf, rv);
 			bytes_received += rv;
@@ -86,7 +98,12 @@ int main(int argc, char**argv) {
 				break;
 			}
 		}
-
+		// check validity
+		if (rv<=0) {
+			close(sessfd);
+			fprintf(stderr, "2nd: receive message rv <=0\n");
+			break;
+		}
 		int opcode = *((int *)received_message);
 		// printf("opcode is %d\n", opcode);
 		// either client closed connection, or error
@@ -94,110 +111,115 @@ int main(int argc, char**argv) {
 		if (opcode == 66) {
 			// "open"
 			// message protocol:
-			// opcode + flag + mode_t + pathname size + pathname
-			printf("open\n");
+			// opcode + flag + pathname size + mode_t + pathname
+			fprintf(stderr, "open\n");
 			int received_flag = *((int *)received_message + 1);
 			// printf("flag is %d\n", received_flag);
-			int received_mode = *((int *)received_message + 2);
-			// printf("mode is %d\n", received_mode);
 
-			int pathname_size = *((int *)received_message + 3);
+			int pathname_size = *((int *)received_message + 2);
 			// printf("pathname size is: %d\n", pathname_size);
-			char *pathname = malloc(pathname_size + 1);
+
+			mode_t received_mode;
+			memcpy(&received_mode, received_message + 3 * sizeof(int), sizeof(mode_t));
+
+			// int received_mode = *((int *)received_message + 2);
+
+			char *pathname = malloc(pathname_size);
 			memcpy(pathname, (received_message + 12 + sizeof(mode_t)), pathname_size * sizeof(char));
 			// strcpy(pathname, (received_message+4));
-			strcpy(pathname + pathname_size, "\0");
-			printf("pathname is: %s\n", pathname);
-			
+			// printf("pathname is: %s\n", pathname);
+			fprintf(stderr, "server received open,flag is %d, mode is %d, pathname is %s\n", received_flag, received_mode, pathname);
+
 			// make procedure call
 			int fd = open(pathname, received_flag, received_mode);
 			int err_num = errno;
 
 			// send return value header back
-			char *reply_size = malloc(sizeof(int));
 			int return_size = 2 * sizeof(int);
-			memcpy(reply_size, &return_size, sizeof(int));
-			send(sessfd, reply_size, sizeof(int), 0);
-
+			char *reply_message = malloc(3 * sizeof(int));
+			memcpy(reply_message, &return_size, sizeof(int));
+			memcpy(reply_message + sizeof(int), &fd, sizeof(int));
+			memcpy(reply_message + 2 * sizeof(int), &err_num, sizeof(int));
 			// send return value back
-			char *reply_message = malloc(2 * sizeof(int));
-			memcpy(reply_message, &fd, sizeof(int));
-			memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
-			send(sessfd, reply_message, 2 * sizeof(int), 0);
+			fprintf(stderr, "server sent back open,fd is %d errno is %d\n", fd, err_num);
+
+			send(sessfd, reply_message, 3 * sizeof(int), 0);
 			
 		} else if (opcode == 67) {
-			printf("close\n");
+			fprintf(stderr, "close\n");
 			int received_fd = *((int *)received_message + 1);
 			// printf("close received fd is %d\n", received_fd);
+			fprintf(stderr, "server received close,fd is %d\n", received_fd);
+
 			int result = close(received_fd);
 			int err_num = errno;
-			// send return value header back
-			char *reply_size = malloc(sizeof(int));
-			int return_size = 2 * sizeof(int);
-			memcpy(reply_size, &return_size, sizeof(int));
-			send(sessfd, reply_size, sizeof(int), 0);
 
+			// send return value header back
+			int return_size = 2 * sizeof(int);
+			// pack together
+			char *reply_message = malloc(3 * sizeof(int));
+			memcpy(reply_message, &return_size, sizeof(int));
+			memcpy(reply_message + sizeof(int), &result, sizeof(int));
+			memcpy(reply_message + 2 * sizeof(int), &err_num, sizeof(int));
 			// send return value back
-			char *reply_message = malloc(2 * sizeof(int));
-			memcpy(reply_message, &result, sizeof(int));
-			memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
-			send(sessfd, reply_message, 2 * sizeof(int), 0);
+			fprintf(stderr, "server sent back close,result is %d, errno is %d\n", received_fd, err_num);
+
+			send(sessfd, reply_message, 3 * sizeof(int), 0);
 
 		} else if (opcode == 68) {
 			// printf("read\n");
 		} else if (opcode == 69) {
 			// "write", opcode == 69
 			// message protocol: 
-			// itself + opcode + fd + buf size + count + buf
-			printf("write\n");
+			// opcode + fd + count + buf
+			fprintf(stderr, "write\n");
 
 			int received_fd = *((int *)received_message + 1);
-			printf("fd is %d\n", received_fd);
+			// printf("fd is %d\n", received_fd);
 			// size_t received_count = *((size_t *)received_message + 2);
 
-			int buf_size = *((int *)received_message + 2);
-			printf("buf size is: %d\n", buf_size);
+			// int buf_size = *((int *)received_message + 2);
+			// printf("buf size is: %d\n", buf_size);
 
-			char *count_pointer = malloc(sizeof(size_t));
-			memcpy(count_pointer, received_message + 2 * sizeof(int), sizeof(size_t));
-			size_t received_count = *count_pointer;
+			size_t received_count;
+			memcpy(&received_count, received_message + 2 * sizeof(int), sizeof(size_t));
 
-			printf("count is %lu\n", received_count);
-			printf("toggle1\n");
-
-			char *buf = malloc(buf_size + 1);
-			memcpy(buf, (received_message + 12 + sizeof(size_t)), buf_size * sizeof(char));
-			printf("toggle2\n");
+			char *buf = malloc(received_count);
+			memcpy(buf, ((char *)received_message + 8 + sizeof(size_t)), received_count * sizeof(char));
 
 			// strcpy(pathname, (received_message+4));
-			strcpy(buf + buf_size, "\0");
-			printf("buf is :%s\n", buf);
-			
+			// strcpy(buf + buf_size, "\0");
+			// printf("buf is :%s\n", buf);
+			fprintf(stderr, "server received write,fd is %d, count is %lu, buf is %s\n", received_fd, received_count, buf);
+
 			// make procedure call
-			int num_write = write(received_fd, buf, received_count);
+			ssize_t num_write = write(received_fd, buf, received_count);
 			int err_num = errno;
 
 			// send return value header back
-			char *reply_size = malloc(sizeof(int));
-			int return_size = 2 * sizeof(int);
-			memcpy(reply_size, &return_size, sizeof(int));
-			send(sessfd, reply_size, sizeof(int), 0);
+			// not an integer!!! return_size!!
+			int return_size = sizeof(int) + sizeof(ssize_t);
 
 			// send return value back
-			char *reply_message = malloc(2 * sizeof(int));
-			memcpy(reply_message, &num_write, sizeof(int));
+			char *reply_message = malloc(2 * sizeof(int) + sizeof(ssize_t));
+			memcpy(reply_message, &return_size, sizeof(int));
 			memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
-			send(sessfd, reply_message, 2 * sizeof(int), 0);
+			memcpy(reply_message + 2 * sizeof(int), &num_write, sizeof(ssize_t));
+			fprintf(stderr, "server sent back write,err_num is %d, bytes written is %lu\n", err_num, num_write);
+
+			send(sessfd, reply_message, 2 * sizeof(int) + sizeof(ssize_t), 0);
 		} 
 		else {
-			printf("others: opcode is: %d\n", opcode);
+			fprintf(stderr, "no corresponding opcode: %d\n", opcode);
+			close(sessfd);
+			break;
 		}
 
 		// close(sessfd);
 		free(buf);
 		free (size_pointer);
 	}
-	
+	}
 	// close socket
 	close(sockfd);
 

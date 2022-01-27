@@ -52,31 +52,46 @@ void connect_message(char *buf) {
 char *send_message(char *buf, int total_length) {
 
 	// send out parameters packed in buf
-	int rv = send(sockfd, (buf), total_length, 0);
-	if (rv < 0) {
-		fprintf(stderr, "error in sending\n");
+	int sv = send(sockfd, (buf), total_length, 0);
+	fprintf(stderr, "inside send_message, sv == %d, total_length == %d\n", sv, total_length);
+	if (sv <= 0) {
+		fprintf(stderr, "error when client send out request!! sv == 0\n");
 	}
 	// receive from the server of return values
 	// message protocol: total_return_size + return message
 	char *size_pointer = malloc(sizeof(int));
-	while ( (rv=recv(sockfd, size_pointer, sizeof(int), 0)) > 0) {
-		// printf("in receive\n");
-		if (rv < 0 || rv >= 4) {
-			// printf("err or not received: %d bytes\n", rv);
+	char *received_size = malloc(sizeof(int));
+	int bytes_received = 0;
+	int rv;
+	while ( (rv=recv(sockfd, size_pointer, sizeof(int) - bytes_received, 0)) > 0) {
+		// check validity
+
+		// create message from buf
+		memcpy(received_size + bytes_received, size_pointer, rv);
+		bytes_received += rv;
+		// enough bytes have been received
+		if (bytes_received >= sizeof(int)) {
 			break;
 		}
 	}
-	int reply_size = *size_pointer;
+	if (rv<=0) {
+		fprintf(stderr, "client receive response error 1\n");
+	}
+	int reply_size = *((int *)received_size);	
 
-	// printf("reply size is %d\n", reply_size);
 	char *reply_message = malloc(reply_size);
-	int bytes_received = 0;
-	while ( (rv=recv(sockfd, reply_message, reply_size, 0)) > 0) {
+	char *temp = malloc(reply_size);
+	bytes_received = 0;
+
+	while ( (rv=recv(sockfd, temp, reply_size - bytes_received, 0)) > 0) {
+		memcpy(reply_message + bytes_received, temp, rv);
 		bytes_received += rv;
-		if (rv < 0 || bytes_received >= reply_size) {
-			// printf("err or not received: %d bytes\n", rv);
+		if (bytes_received >= reply_size) {
 			break;
 		}
+	}
+	if (rv<=0) {
+		fprintf(stderr, "client receive response error 2\n");
 	}
 	return reply_message;
 	// orig_close(sockfd);
@@ -98,9 +113,9 @@ int open(const char *pathname, int flags, ...) {
 	int starter = 0;
 
 	// overall size of message, protocol:
-	// itself + opcode + flag + mode_t + pathname size + pathname
+	// itself + opcode + flag + pathname size + mode_t + pathname
 	int total_length = 4 * sizeof(int) + strlen(pathname) + sizeof(mode_t);
-    char message[total_length];
+    char *message = malloc(total_length);
 
 	memcpy(message + starter, &total_length, sizeof(int));
 	starter += sizeof(int);
@@ -110,28 +125,29 @@ int open(const char *pathname, int flags, ...) {
 	// set flag
 	memcpy(message + starter, &flags, sizeof(int));
 	starter += sizeof(int);
-	// set mode_t
-	memcpy(message + starter, &m, sizeof(mode_t));
-	starter += sizeof(mode_t);
-    // send message to server, indicating type of operation
 
 	// set header (size) of pathname
 	int pathname_size = strlen(pathname);
 	memcpy(message + starter, &pathname_size, sizeof(int));
 	starter += sizeof(int);
 
+	// set mode_t
+	memcpy(message + starter, &m, sizeof(mode_t));
+	starter += sizeof(mode_t);
+    // send message to server, indicating type of operation
+
 	// set pathname
 	memcpy(message + starter, pathname, pathname_size);
 	starter += pathname_size;
 	
-	printf("client called open: pathname %s, flags %d, mode %d\n", pathname, flags, m);
+	fprintf(stderr, "client called open: pathname %s, flags %d, mode %d, total length: %d\n", pathname, flags, m, total_length);
 	char *received_message = send_message(message, total_length);
 
 	int received_fd = *received_message;
 	int received_errno = *(received_message + 1);
-	printf("client received from open call: fd %d, errno %d !!\n", received_fd, received_errno);
+	fprintf(stderr, "client received from open call: fd %d, errno %d !!\n", received_fd, received_errno);
 	// return orig_open(pathname, flags, m);
-	if (received_fd < 0) {
+	if (received_errno != 0 || received_fd < 0) {
 		errno = received_errno;
 		return -1;
 	}
@@ -153,14 +169,14 @@ int close(int fd) {
 	memcpy(message + starter, &fd, sizeof(int));
 	starter += sizeof(int);
 
-	printf("client called close: length %d, opcode %d, fd %d\n", total_length, opcode, fd);
+	fprintf(stderr, "client called close: length %d, fd %d\n", total_length, fd);
 
 	char *received_message = send_message(message, total_length);
 	int result = *received_message;
 	int received_errno = *(received_message + 1);
-	printf("client received from close call: result %d, errno %d !!\n", result, received_errno);
+	fprintf(stderr, "client received from close call: result %d, errno %d !!\n", result, received_errno);
 
-	if (result != 0) {
+	if (result != 0 || received_errno != 0) {
 		errno = received_errno;
 	}
 	return result;
@@ -183,9 +199,11 @@ ssize_t write (int fd, const void *buf, size_t count) {
 	int starter = 0;
 
 	// overall size of message, protocol:
-	// itself + opcode + fd + buf size + count + buf
-	int total_length = 4 * sizeof(int) + strlen(buf) + sizeof(size_t);
-    char message[total_length];
+	// itself + opcode + fd + count + buf
+
+	// dont send out strlen(buf)!!!!
+	int total_length = 3 * sizeof(int) + sizeof(size_t) + count;
+    char *message = malloc(total_length);
 
 	memcpy(message + starter, &total_length, sizeof(int));
 	starter += sizeof(int);
@@ -196,31 +214,29 @@ ssize_t write (int fd, const void *buf, size_t count) {
 	memcpy(message + starter, &fd, sizeof(int));
 	starter += sizeof(int);
 
-	// set header (size) of buf
-	int buf_size = strlen(buf);
-	memcpy(message + starter, &buf_size, sizeof(int));
-	starter += sizeof(int);
-
 	// set count
 	memcpy(message + starter, &count, sizeof(mode_t));
 	starter += sizeof(size_t);
 
 	// set buf
-	memcpy(message + starter, buf, buf_size);
-	starter += buf_size;
+	memcpy(message + starter, buf, count);
+	starter += count;
 
     // send message to server, indicating type of operation
 
-	printf("client called write: buf %s, fd %d, count %lu\n", buf, fd, count);
+	fprintf(stderr, "client called write: fd %d, count %lu, total length %d\n", fd, count, total_length);
 	char *received_message = send_message(message, total_length);
-	int received_write_num = *received_message;
-	int received_errno = *(received_message + 1);
-	if (received_write_num == -1) {
+	int received_errno = *(received_message);
+
+	ssize_t received_num;
+	memcpy(&received_num, received_message + sizeof(int), sizeof(ssize_t));
+
+	if (received_num == -1 || received_errno != 0) {
 		errno = received_errno;
 	}
-	printf("client received from write call: bytes written %d, errno %d !!\n", received_write_num, received_errno);
+	fprintf(stderr, "client received from write call: bytes written %lu, errno %d !!\n", received_num, received_errno);
 
-	return received_write_num;
+	return received_num;
 
 }
 
