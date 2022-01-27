@@ -143,13 +143,12 @@ int open(const char *pathname, int flags, ...) {
 	fprintf(stderr, "client called open: pathname %s, flags %d, mode %d, total length: %d\n", pathname, flags, m, total_length);
 	char *received_message = send_message(message, total_length);
 
-	int received_fd = *received_message;
-	int received_errno = *(received_message + 1);
+	int received_fd = *((int *)received_message);
+	int received_errno = *((int *)received_message + 1);
 	fprintf(stderr, "client received from open call: fd %d, errno %d !!\n", received_fd, received_errno);
 	// return orig_open(pathname, flags, m);
 	if (received_errno != 0 || received_fd < 0) {
 		errno = received_errno;
-		return -1;
 	}
 	return received_fd;
 }
