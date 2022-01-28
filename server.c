@@ -167,7 +167,10 @@ int main(int argc, char**argv) {
 			send(sessfd, reply_message, 3 * sizeof(int), 0);
 
 		} else if (opcode == 68) {
-			// printf("read\n");
+			// "read", opcode == 68
+			fprintf(stderr, "read\n");
+
+
 		} else if (opcode == 69) {
 			// "write", opcode == 69
 			// message protocol: 
