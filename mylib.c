@@ -187,9 +187,47 @@ int close(int fd) {
 }
 
 ssize_t read(int fd, void *buf, size_t count) {
-	// char *message = "read\n";
-	// connect_message(message);
-	return orig_read(fd, buf, count);
+
+
+	// assign opcode of "read" as 68
+	int opcode = 68;
+	int starter = 0;
+
+	// overall size of message, protocol:
+	// itself + opcode + fd + count
+
+	// dont send out strlen(buf)!!!!
+	int total_length = 3 * sizeof(int) + sizeof(size_t);
+    char *message = malloc(total_length);
+
+	memcpy(message + starter, &total_length, sizeof(int));
+	starter += sizeof(int);
+	// set opcode
+	memcpy(message + starter, &opcode, sizeof(int));
+	starter += sizeof(int);
+	// set fd
+	memcpy(message + starter, &fd, sizeof(int));
+	starter += sizeof(int);
+
+	// set count
+	memcpy(message + starter, &count, sizeof(mode_t));
+	starter += sizeof(size_t);
+
+
+    // send message to server, indicating type of operation
+
+	fprintf(stderr, "client called read: fd %d, count %lu, total length %d\n", fd, count, total_length);
+	char *received_message = send_message(message, total_length);
+	int received_errno = *(received_message);
+	ssize_t received_num;
+	memcpy(&received_num, received_message + sizeof(int), sizeof(ssize_t));
+	memcpy(buf, received_message + sizeof(int) + sizeof(ssize_t), count);
+	fprintf(stderr, "client received from read call: bytes read %lu, errno %d, contents: %s !!\n", received_num, received_errno, (char *)buf);
+	
+	if (received_num == -1) {
+		errno = received_errno;
+	}
+	return received_num;
 }
 
 ssize_t write (int fd, const void *buf, size_t count) {
@@ -225,6 +263,8 @@ ssize_t write (int fd, const void *buf, size_t count) {
 
 	fprintf(stderr, "client called write: fd %d, count %lu, total length %d\n", fd, count, total_length);
 	char *received_message = send_message(message, total_length);
+
+	// may need to change to int * here!!!
 	int received_errno = *(received_message);
 
 	ssize_t received_num;

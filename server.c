@@ -169,7 +169,24 @@ int main(int argc, char**argv) {
 		} else if (opcode == 68) {
 			// "read", opcode == 68
 			fprintf(stderr, "read\n");
+			int received_fd = *((int *)received_message + 1);
+			size_t received_count;
+			memcpy(&received_count, received_message + 2 * sizeof(int), sizeof(size_t));
+			fprintf(stderr, "server received read,fd is %d, count is %lu\n", received_fd, received_count);
 
+			char *tmp = malloc(received_count);
+			ssize_t num_read = read(received_fd, tmp, received_count);
+			int err_num = errno;
+			// return size = errno + num_read + strlen(tmp)
+			int return_size = sizeof(int) + sizeof(ssize_t) + received_count;
+
+			char *reply_message = malloc(sizeof(int) + return_size);
+			memcpy(reply_message, &return_size, sizeof(int));
+			memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
+			memcpy(reply_message + 2 * sizeof(int), &num_read, sizeof(ssize_t));
+			memcpy(reply_message + 2 * sizeof(int) + sizeof(ssize_t), tmp, received_count);
+			send(sessfd, reply_message, sizeof(int) + return_size, 0);
+			fprintf(stderr, "server sent back read, err_num is %d, bytes read is %lu, content is:%s\n", err_num, num_read, tmp);
 
 		} else if (opcode == 69) {
 			// "write", opcode == 69
