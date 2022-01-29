@@ -218,7 +218,7 @@ ssize_t read(int fd, void *buf, size_t count) {
 
 	fprintf(stderr, "client called read: fd %d, count %lu, total length %d\n", fd, count, total_length);
 	char *received_message = send_message(message, total_length);
-	int received_errno = *(received_message);
+	int received_errno = *((int *)received_message);
 	ssize_t received_num;
 	memcpy(&received_num, received_message + sizeof(int), sizeof(ssize_t));
 	memcpy(buf, received_message + sizeof(int) + sizeof(ssize_t), count);
@@ -265,7 +265,7 @@ ssize_t write (int fd, const void *buf, size_t count) {
 	char *received_message = send_message(message, total_length);
 
 	// may need to change to int * here!!!
-	int received_errno = *(received_message);
+	int received_errno = *((int *)received_message);
 
 	ssize_t received_num;
 	memcpy(&received_num, received_message + sizeof(int), sizeof(ssize_t));
@@ -280,21 +280,83 @@ ssize_t write (int fd, const void *buf, size_t count) {
 }
 
 off_t lseek(int fd, off_t offset, int whence) {
-	char *message = "lseek\n";
-	connect_message(message);
-	return orig_lseek(fd, offset, whence);
+	// assign opcode of "lseek" as 70
+	int opcode = 70;
+
+	// itself + opcode + fd + whence + offset
+
+	int total_length = 4 * sizeof(int) + sizeof(off_t);
+	char *message = malloc(total_length);
+	int starter = 0;
+
+	memcpy(message + starter, &total_length, sizeof(int));
+	starter += sizeof(int);
+	memcpy(message + starter, &opcode, sizeof(int));
+	starter += sizeof(int);
+	memcpy(message + starter, &fd, sizeof(int));
+	starter += sizeof(int);
+	memcpy(message + starter, &whence, sizeof(int));
+	starter += sizeof(int);
+	memcpy(message + starter, &offset, sizeof(off_t));
+	starter += sizeof(off_t);
+
+	fprintf(stderr, "client called lseek: fd %d, whence %d, offset %ld, total_length %d\n", fd, whence, offset, total_length);
+	// errno + result
+	char *received_message = send_message(message, total_length);
+	int received_errno = *((int *)received_message);
+
+	off_t received_result;
+	memcpy(&received_result, received_message + sizeof(int), sizeof(off_t));
+	if (received_errno != 0) {
+		errno = received_errno;
+	}
+	fprintf(stderr, "client received from lseek call: errno %d, result %ld\n", received_errno, received_result);
+
+	return received_result;
 }
 
-int stat (const char *pathname, struct stat *statbuf) {
-	char *message = "stat\n";
-	connect_message(message);
-	return orig_stat(pathname, statbuf);
-}
+// int stat (const char *pathname, struct stat *statbuf) {
+// 	char *message = "stat\n";
+// 	connect_message(message);
+// 	return orig_stat(pathname, statbuf);
+// }
 
 int __xstat(int ver, const char * path, struct stat * stat_buf) {
-	char *message = "__xstat\n";
-	connect_message(message);
-	return orig_xstat(ver, path, stat_buf);
+	// assign opcode of "xstat" as 71
+	int opcode = 71;
+	int starter = 0;
+
+	// overall size of message, protocol:
+	// itself (int) + opcode (int) + ver (int) + strlen(path) (int) + path
+
+	int total_length = 4 * sizeof(int) + strlen(path);
+	
+	char *message = malloc(total_length);
+
+	memcpy(message + starter, &total_length, sizeof(int));
+	starter += sizeof(int);
+	memcpy(message + starter, &opcode, sizeof(int));
+	starter += sizeof(int);
+	memcpy(message + starter, &ver, sizeof(int));
+	starter += sizeof(int);
+	int path_size = strlen(path);
+	memcpy(message + starter, &path_size, sizeof(int));
+	starter += sizeof(int);
+	memcpy(message + starter, path, path_size);
+	starter += path_size;
+
+	fprintf(stderr, "client called __xstat: ver %d, path_size %d, path %s total length %d\n", ver, path_size, path, total_length);
+	// send out message
+	char *received_message = send_message(message, total_length);
+	int received_errno = *((int *)received_message);
+	int received_result = *((int *)received_message + 1);
+	memcpy(stat_buf, received_message + 2 * sizeof(int), sizeof(struct stat));
+	if (received_result == -1) {
+		errno = received_errno;
+	}
+	fprintf(stderr, "client received from __xstat call: errno %d, result %d, stat_buf %s\n", received_errno, received_result, stat_buf);
+
+	return received_result;
 }
 
 int unlink (const char *pathname) {

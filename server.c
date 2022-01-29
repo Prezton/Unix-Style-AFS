@@ -9,6 +9,7 @@
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 
 
@@ -174,7 +175,7 @@ int main(int argc, char**argv) {
 			memcpy(&received_count, received_message + 2 * sizeof(int), sizeof(size_t));
 			fprintf(stderr, "server received read,fd is %d, count is %lu\n", received_fd, received_count);
 
-			char *tmp = malloc(received_count);
+			char tmp[received_count];
 			ssize_t num_read = read(received_fd, tmp, received_count);
 			int err_num = errno;
 			// return size = errno + num_read + strlen(tmp)
@@ -185,7 +186,9 @@ int main(int argc, char**argv) {
 			memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
 			memcpy(reply_message + 2 * sizeof(int), &num_read, sizeof(ssize_t));
 			memcpy(reply_message + 2 * sizeof(int) + sizeof(ssize_t), tmp, received_count);
-			send(sessfd, reply_message, sizeof(int) + return_size, 0);
+			send(sessfd, reply_message, sizeof(int) + sizeof(int) + sizeof(ssize_t) + received_count, 0);
+			// strcpy(tmp + received_count, "\0");
+
 			fprintf(stderr, "server sent back read, err_num is %d, bytes read is %lu, content is:%s\n", err_num, num_read, tmp);
 
 		} else if (opcode == 69) {
@@ -228,7 +231,54 @@ int main(int argc, char**argv) {
 			fprintf(stderr, "server sent back write,err_num is %d, bytes written is %lu\n", err_num, num_write);
 
 			send(sessfd, reply_message, 2 * sizeof(int) + sizeof(ssize_t), 0);
-		} 
+		} else if (opcode == 70) {
+			// "lseek", opcode == 70
+			// message protocol: 
+			// opcode + fd + whence + offset
+			fprintf(stderr, "lseek\n");
+			int received_fd = *((int *)received_message + 1);
+			int received_whence = *((int *)received_message + 2);
+			off_t received_offset;
+			memcpy(&received_offset, (received_message + 3 * sizeof(int)), sizeof(off_t));
+			fprintf(stderr, "server received lseek, fd is %d, whence is %d, offset is %ld\n", received_fd, received_whence, received_offset);
+			off_t result = lseek(received_fd, received_offset, received_whence);
+			int err_num = errno;
+			
+			// return size = errno (int) + result (off_t)
+			int return_size = sizeof(off_t) + sizeof(int);
+			// message-to-be-replied size include return_size itself
+			char *reply_message = malloc(2 * sizeof(int) + sizeof(off_t));
+			memcpy(reply_message, &return_size, sizeof(int));
+			memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
+			memcpy(reply_message + 2 * sizeof(int), &result, sizeof(off_t));
+			fprintf(stderr, "server sent back lseek, err_num is %d, result is %ld\n", err_num, result);
+			send(sessfd, reply_message, 2 * sizeof(int) + sizeof(off_t), 0);
+		} else if (opcode == 71) {
+			// "xstat", opcode == 71
+			// message protocol: 
+			// opcode + ver + path_size + path
+			fprintf(stderr, "__xstat\n");
+			int received_ver = *((int *)received_message + 1);
+			int received_pathsize = *((int *)received_message + 2);
+			char *received_path = malloc(received_pathsize);
+			memcpy(received_path, received_message + 3 * sizeof(int), received_pathsize);
+			fprintf(stderr, "server received __xstat, ver is %d, pathsize is %d, path is %s", received_ver, received_pathsize, received_path);
+			
+			struct stat *tmp_stat_buf = malloc(sizeof(struct stat));
+			int result = __xstat(received_ver, received_path, tmp_stat_buf);
+			int err_num = errno;
+
+			// return size + errno + result + stat_buf
+			int return_size = 2 * sizeof(int) + sizeof(struct stat);
+			char *reply_message = malloc(3 * sizeof(int) + sizeof(struct stat));
+			memcpy(reply_message, &return_size, sizeof(int));
+			memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
+			memcpy(reply_message + 2 * sizeof(int), &result, sizeof(int));
+			memcpy(reply_message + 3 * sizeof(int), tmp_stat_buf, sizeof(struct stat));
+			fprintf(stderr, "server sent back __xstat, err_num is %d, result is %d, xstat_buf is %s\n", err_num, result, tmp_stat_buf);
+			send(sessfd, reply_message, 3 * sizeof(int) + sizeof(struct stat), 0);
+
+		}
 		else {
 			fprintf(stderr, "no corresponding opcode: %d\n", opcode);
 			close(sessfd);
