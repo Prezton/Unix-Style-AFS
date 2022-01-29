@@ -360,9 +360,36 @@ int __xstat(int ver, const char * path, struct stat * stat_buf) {
 }
 
 int unlink (const char *pathname) {
-	char *message = "unlink\n";
-	connect_message(message);
-	return orig_unlink(pathname);
+
+	int opcode = 72;
+	int starter = 0;
+
+	// overall size of message, protocol:
+	// itself + opcode + path size + pathname
+	int total_length = 3 * sizeof(int) + strlen(pathname);
+    char *message = malloc(total_length);
+
+	memcpy(message + starter, &total_length, sizeof(int));
+	starter += sizeof(int);
+	// set opcode
+	memcpy(message + starter, &opcode, sizeof(int));
+	starter += sizeof(int);
+	// set pathname size
+	int path_size = strlen(pathname);
+	memcpy(message + starter, &path_size, sizeof(int));
+	starter += sizeof(int);
+	memcpy(message + starter, pathname, path_size);
+
+	fprintf(stderr, "client called unlink: path size %d, pathname %s, total_length %d\n", path_size, pathname, total_length);
+	char *received_message = send_message(message, total_length);
+	int received_errno = *((int *)received_message);
+	int received_result = *((int *)received_message + 1);
+	if (received_result == -1) {
+		errno = received_errno;
+	}
+	fprintf(stderr, "client received from unlink call: errno %d, result %d\n", received_errno, received_result);
+
+	return received_result;
 }
 ssize_t getdirentries (int fd, char *buf, size_t nbytes, off_t *basep) {
 	char *message = "getdirentries\n";

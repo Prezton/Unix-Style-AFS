@@ -254,7 +254,7 @@ int main(int argc, char**argv) {
 			fprintf(stderr, "server sent back lseek, err_num is %d, result is %ld\n", err_num, result);
 			send(sessfd, reply_message, 2 * sizeof(int) + sizeof(off_t), 0);
 		} else if (opcode == 71) {
-			// "xstat", opcode == 71
+			// "__xstat", opcode == 71
 			// message protocol: 
 			// opcode + ver + path_size + path
 			fprintf(stderr, "__xstat\n");
@@ -262,7 +262,7 @@ int main(int argc, char**argv) {
 			int received_pathsize = *((int *)received_message + 2);
 			char *received_path = malloc(received_pathsize);
 			memcpy(received_path, received_message + 3 * sizeof(int), received_pathsize);
-			fprintf(stderr, "server received __xstat, ver is %d, pathsize is %d, path is %s", received_ver, received_pathsize, received_path);
+			fprintf(stderr, "server received __xstat, ver is %d, pathsize is %d, path is %s\n", received_ver, received_pathsize, received_path);
 			
 			struct stat *tmp_stat_buf = malloc(sizeof(struct stat));
 			int result = __xstat(received_ver, received_path, tmp_stat_buf);
@@ -277,6 +277,25 @@ int main(int argc, char**argv) {
 			memcpy(reply_message + 3 * sizeof(int), tmp_stat_buf, sizeof(struct stat));
 			fprintf(stderr, "server sent back __xstat, err_num is %d, result is %d, xstat_buf is %s\n", err_num, result, tmp_stat_buf);
 			send(sessfd, reply_message, 3 * sizeof(int) + sizeof(struct stat), 0);
+
+		} else if (opcode == 72) {
+			fprintf(stderr, "unlink\n");
+
+			// opcode + path size + pathname
+			int received_pathsize = *((int *)received_message + 1);
+			char *received_path = malloc(received_pathsize);
+			memcpy(received_path, received_message + 2 * sizeof(int), received_pathsize);
+			fprintf(stderr, "server received unlink, path size is %d, path is %s\n", received_pathsize, received_path);
+			int result = unlink(received_path);
+			int err_num = errno;
+			
+			char *reply_message = malloc(3 * sizeof(int));
+			int return_size = 2 * sizeof(int);
+			memcpy(reply_message, &return_size, sizeof(int));
+			memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
+			memcpy(reply_message + 2 * sizeof(int), &result, sizeof(int));
+			fprintf(stderr, "server sent back unlink, err_num is %d, result is %d\n", err_num, result);
+			send(sessfd, reply_message, 3 * sizeof(int), 0);
 
 		}
 		else {
