@@ -108,7 +108,7 @@ int open(const char *pathname, int flags, ...) {
 	}
 	// we just print a message, then call through to the original open function (from libc)
 	// fprintf(stderr, "mylib: open called for path %s\n", pathname);
-	// assign opcode of "open" as 0
+	// assign opcode of "open" as 66
 	int opcode = 66;
 	int starter = 0;
 
@@ -392,9 +392,47 @@ int unlink (const char *pathname) {
 	return received_result;
 }
 ssize_t getdirentries (int fd, char *buf, size_t nbytes, off_t *basep) {
-	char *message = "getdirentries\n";
-	connect_message(message);
-	return orig_getdirentries(fd, buf, nbytes, basep);
+	// assign opcode of "open" as 73
+	int opcode = 73;
+	int starter = 0;
+
+	// overall size of message, protocol:
+	// itself + opcode + fd + nbytes + basep
+	int total_length = 3 * sizeof(int) + sizeof(size_t) + sizeof(off_t);
+    char *message = malloc(total_length);
+
+	memcpy(message + starter, &total_length, sizeof(int));
+	starter += sizeof(int);
+	// set opcode
+	memcpy(message + starter, &opcode, sizeof(int));
+	starter += sizeof(int);
+	// set flag
+	memcpy(message + starter, &fd, sizeof(int));
+	starter += sizeof(int);
+
+	memcpy(message + starter, &nbytes, sizeof(size_t));
+	starter += sizeof(size_t);
+
+	memcpy(message + starter, basep, sizeof(off_t));
+	starter += sizeof(off_t);
+	fprintf(stderr, "client called getdirentries: fd %d, nbytes %ld, basep %ld\n", fd, nbytes, *basep);
+
+	char *received_message = send_message(message, total_length);
+	int received_errno = *((int *)received_message);
+	ssize_t received_result;
+
+	memcpy(&received_result, received_message + sizeof(int), sizeof(ssize_t));
+
+	if (received_result != -1) {
+		memcpy(buf, received_message + sizeof(int) + sizeof(ssize_t), received_result);
+	}
+	fprintf(stderr, "client received from getdirentries call: errno %d, bytes_read %ld\n", received_errno, received_result);
+
+	if (received_result == -1) {
+		errno = received_errno;
+	}
+
+	return received_result;
 }
 
 struct dirtreenode* getdirtree(const char *path ) {

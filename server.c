@@ -10,8 +10,10 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-
-
+#include <dlfcn.h>
+#include <stdarg.h>
+#include <unistd.h>
+#include <dirent.h>
 
 #define MAXMSGLEN 100
 
@@ -296,6 +298,34 @@ int main(int argc, char**argv) {
 			memcpy(reply_message + 2 * sizeof(int), &result, sizeof(int));
 			fprintf(stderr, "server sent back unlink, err_num is %d, result is %d\n", err_num, result);
 			send(sessfd, reply_message, 3 * sizeof(int), 0);
+
+		} else if (opcode == 73) {
+			fprintf(stderr, "getdirentries\n");
+
+			// opcode + fd + nbytes + basep
+			int received_fd = *((int *)received_message + 1);
+			size_t received_nbytes;
+			memcpy(&received_nbytes, received_message + 2 * sizeof(int), sizeof(size_t));
+			off_t received_basep;
+			memcpy(&received_basep, received_message + 2 * sizeof(int) + sizeof(size_t), sizeof(off_t));
+
+			fprintf(stderr, "server received getdirentries, fd is %d, nbytes is %ld, basep is %ld\n", received_fd, received_nbytes, received_basep);
+			char *tmp_buf = malloc(received_nbytes);
+			ssize_t bytes_read = getdirentries(received_fd, tmp_buf, received_nbytes, &received_basep);
+			int err_num = errno;
+			fprintf(stderr, "test1 %d", bytes_read);
+
+			// reply_message = errno + bytes_read + tmp_buf
+			int return_size = sizeof(int) + sizeof(ssize_t) + bytes_read;
+			char *reply_message = malloc(2 * sizeof(int) + sizeof(ssize_t) + bytes_read);
+			memcpy(reply_message, &return_size, sizeof(int));
+			memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
+			memcpy(reply_message + 2 * sizeof(int), &bytes_read, sizeof(ssize_t));
+			memcpy(reply_message + 2 * sizeof(int) + sizeof(ssize_t), tmp_buf, bytes_read);
+			fprintf(stderr, "server sent back getdirentries, err_num is %d, bytes_read is %ld, tmp_buf is %s\n", err_num, bytes_read, tmp_buf);
+
+			send(sessfd, reply_message, 2 * sizeof(int) + sizeof(ssize_t) + bytes_read, 0);
+
 
 		}
 		else {
