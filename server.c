@@ -313,20 +313,25 @@ int main(int argc, char**argv) {
 			char *tmp_buf = malloc(received_nbytes);
 			ssize_t bytes_read = getdirentries(received_fd, tmp_buf, received_nbytes, &received_basep);
 			int err_num = errno;
-			fprintf(stderr, "test1 %d", bytes_read);
-
+			int bytes_read_length = bytes_read;
+			// fprintf(stderr, "test1 %d", bytes_read);
+			if (bytes_read == -1) {
+				bytes_read_length = 0;
+			}
 			// reply_message = errno + bytes_read + tmp_buf
-			int return_size = sizeof(int) + sizeof(ssize_t) + bytes_read;
-			char *reply_message = malloc(2 * sizeof(int) + sizeof(ssize_t) + bytes_read);
+			int return_size = sizeof(int) + sizeof(ssize_t) + bytes_read_length;
+			char *reply_message = malloc(2 * sizeof(int) + sizeof(ssize_t) + bytes_read_length);
 			memcpy(reply_message, &return_size, sizeof(int));
 			memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
 			memcpy(reply_message + 2 * sizeof(int), &bytes_read, sizeof(ssize_t));
-			memcpy(reply_message + 2 * sizeof(int) + sizeof(ssize_t), tmp_buf, bytes_read);
+			memcpy(reply_message + 2 * sizeof(int) + sizeof(ssize_t), tmp_buf, bytes_read_length);
 			fprintf(stderr, "server sent back getdirentries, err_num is %d, bytes_read is %ld, tmp_buf is %s\n", err_num, bytes_read, tmp_buf);
 
-			send(sessfd, reply_message, 2 * sizeof(int) + sizeof(ssize_t) + bytes_read, 0);
+			send(sessfd, reply_message, 2 * sizeof(int) + sizeof(ssize_t) + bytes_read_length, 0);
 
 
+		} else if (opcode == 74) {
+			
 		}
 		else {
 			fprintf(stderr, "no corresponding opcode: %d\n", opcode);

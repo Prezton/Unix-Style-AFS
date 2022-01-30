@@ -392,7 +392,7 @@ int unlink (const char *pathname) {
 	return received_result;
 }
 ssize_t getdirentries (int fd, char *buf, size_t nbytes, off_t *basep) {
-	// assign opcode of "open" as 73
+	// assign opcode of "getdirentires" as 73
 	int opcode = 73;
 	int starter = 0;
 
@@ -435,15 +435,37 @@ ssize_t getdirentries (int fd, char *buf, size_t nbytes, off_t *basep) {
 	return received_result;
 }
 
-struct dirtreenode* getdirtree(const char *path ) {
-	char *message = "getdirtree\n";
-	connect_message(message);
-	return orig_getdirtree(path);
+struct dirtreenode* getdirtree(const char *path) {
+	// assign opcode of "getdirtree" as 74
+	int opcode = 74;
+	int starter = 0;
+
+	// overall size of message, protocol:
+	// itself + opcode + path size + path
+	int total_length = 3 * sizeof(int) + strlen(path);
+    char *message = malloc(total_length);
+
+	memcpy(message + starter, &total_length, sizeof(int));
+	starter += sizeof(int);
+	// set opcode
+	memcpy(message + starter, &opcode, sizeof(int));
+	starter += sizeof(int);
+	// set path size
+	int path_size = strlen(path);
+	memcpy(message + starter, &path_size, sizeof(int));
+	starter += sizeof(int);
+	memcpy(message + starter, path, path_size);
+	starter += path_size;
+
+	fprintf(stderr, "client called getdirtree: path size %d, path %s, total length: %d\n", path_size, path, total_length);
+	// char *received_message = send_message(message, total_length);
+
+
+
 }
 
 void freedirtree( struct dirtreenode* dt ) {
-	char *message = "freedirtree\n";
-	connect_message(message);
+	fprintf(stderr, "client called freedirtree locally\n");
 	return orig_freedirtree(dt);
 }
 
