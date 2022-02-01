@@ -354,7 +354,7 @@ int __xstat(int ver, const char * path, struct stat * stat_buf) {
 	if (received_result == -1) {
 		errno = received_errno;
 	}
-	fprintf(stderr, "client received from __xstat call: errno %d, result %d, stat_buf %s\n", received_errno, received_result, stat_buf);
+	fprintf(stderr, "client received from __xstat call: errno %d, result %d\n", received_errno, received_result);
 
 	return received_result;
 }
@@ -458,8 +458,9 @@ struct dirtreenode* getdirtree(const char *path) {
 	starter += path_size;
 
 	fprintf(stderr, "client called getdirtree: path size %d, path %s, total length: %d\n", path_size, path, total_length);
-	// char *received_message = send_message(message, total_length);
+	char *received_message = send_message(message, total_length);
 
+	return orig_getdirtree(path);
 
 
 }

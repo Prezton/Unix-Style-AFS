@@ -14,8 +14,13 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <../include/dirtree.h>
 
 #define MAXMSGLEN 100
+char *tree_string;
+
+void serialize_tree(struct dirtreenode *root);
+int get_tree_size(struct dirtreenode *root);
 
 int main(int argc, char**argv) {
 	char *msg="Hello from server";
@@ -277,7 +282,7 @@ int main(int argc, char**argv) {
 			memcpy(reply_message + sizeof(int), &err_num, sizeof(int));
 			memcpy(reply_message + 2 * sizeof(int), &result, sizeof(int));
 			memcpy(reply_message + 3 * sizeof(int), tmp_stat_buf, sizeof(struct stat));
-			fprintf(stderr, "server sent back __xstat, err_num is %d, result is %d, xstat_buf is %s\n", err_num, result, tmp_stat_buf);
+			fprintf(stderr, "server sent back __xstat, err_num is %d, result is %d\n", err_num, result);
 			send(sessfd, reply_message, 3 * sizeof(int) + sizeof(struct stat), 0);
 
 		} else if (opcode == 72) {
@@ -331,7 +336,25 @@ int main(int argc, char**argv) {
 
 
 		} else if (opcode == 74) {
-			
+			fprintf(stderr, "getdirtree\n");
+			// opcode + path size + path
+			int received_pathsize = *((int *)received_message + 1);
+			char *received_path = malloc(received_pathsize);
+			memcpy(received_path, received_message + 2 * sizeof(int), received_pathsize);
+			fprintf(stderr, "server received getdirtree, path size is %d, path is %s\n", received_pathsize, received_path);
+			struct dirtreenode* root = getdirtree(received_path);
+			int err_num = errno;
+
+			// traverse to get tree size
+			int tree_size = get_tree_size(root);
+			fprintf(stderr, "tree string size is %d\n", tree_size);
+
+			tree_string = malloc(tree_size);
+			serialize_tree(root);
+			fprintf(stderr, "server sent out tree string %s\n", tree_string);
+			send(sessfd, tree_string, tree_size, 0);
+			free(tree_string);
+			freedirtree(root);
 		}
 		else {
 			fprintf(stderr, "no corresponding opcode: %d\n", opcode);
@@ -348,4 +371,32 @@ int main(int argc, char**argv) {
 	close(sockfd);
 
 	return 0;
+}
+
+
+int get_tree_size(struct dirtreenode *root) {
+	int cur_size = 0;
+	int name_size = strlen(root->name);
+	char *name = root->name;
+	int num_children = root->num_subdirs;
+
+	// each node has 3 fields: name_size (int) + name (strlen(name)) + num_children (int)
+	cur_size += (name_size + 2 * sizeof(int));
+	for (int i = 0; i < num_children; i++) {
+		cur_size += get_tree_size(root->subdirs[i]);
+	}
+	return cur_size;
+}
+
+void serialize_tree(struct dirtreenode *root) {
+	int name_size = strlen(root->name);
+	char *name = root->name;
+	int num_children = root->num_subdirs;
+
+	memcpy(tree_string, &name_size, sizeof(int));
+	memcpy(tree_string, name, name_size);
+	memcpy(tree_string, &num_children, sizeof(int));
+	for (int i = 0; i < num_children; i++) {
+		serialize_tree(root->subdirs[i]);
+	}
 }
