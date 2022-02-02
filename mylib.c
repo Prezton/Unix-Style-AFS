@@ -33,6 +33,7 @@ struct dirtreenode* (*orig_getdirtree)( const char *path );
 void (*orig_freedirtree)( struct dirtreenode* dt );
 
 #define MAXMSGLEN 200
+#define THRESHOLD 99999
 
 char *serverport;
 unsigned short port;
@@ -150,13 +151,21 @@ int open(const char *pathname, int flags, ...) {
 	int received_errno = *((int *)received_message + 1);
 	fprintf(stderr, "client received from open call: fd %d, errno %d !!\n", received_fd, received_errno);
 	// return orig_open(pathname, flags, m);
-	if (received_errno != 0 || received_fd < 0) {
+	if (received_fd == -1) {
 		errno = received_errno;
+		return -1;
 	}
-	return received_fd;
+	return received_fd + THRESHOLD;
 }
 
 int close(int fd) {
+
+	if (fd >= THRESHOLD) {
+		fd -= THRESHOLD;
+	} else {
+		return orig_close(fd);
+	}
+
 	int opcode = 67;
 	int total_length = 3 * sizeof(int);
 	int starter = 0;
@@ -190,6 +199,12 @@ int close(int fd) {
 }
 
 ssize_t read(int fd, void *buf, size_t count) {
+
+	if (fd >= THRESHOLD) {
+		fd -= THRESHOLD;
+	} else {
+		return orig_read(fd, buf, count);
+	}
 
 
 	// assign opcode of "read" as 68
@@ -234,6 +249,13 @@ ssize_t read(int fd, void *buf, size_t count) {
 }
 
 ssize_t write (int fd, const void *buf, size_t count) {
+
+	if (fd >= THRESHOLD) {
+		fd -= THRESHOLD;
+	} else {
+		return orig_write(fd, buf, count);
+	}
+
 	// assign opcode of "write" as 69
 	int opcode = 69;
 	int starter = 0;
@@ -283,6 +305,13 @@ ssize_t write (int fd, const void *buf, size_t count) {
 }
 
 off_t lseek(int fd, off_t offset, int whence) {
+
+	if (fd >= THRESHOLD) {
+		fd -= THRESHOLD;
+	} else {
+		return orig_lseek(fd, offset, whence);
+	}
+
 	// assign opcode of "lseek" as 70
 	int opcode = 70;
 
@@ -395,6 +424,13 @@ int unlink (const char *pathname) {
 	return received_result;
 }
 ssize_t getdirentries (int fd, char *buf, size_t nbytes, off_t *basep) {
+
+	if (fd >= THRESHOLD) {
+		fd -= THRESHOLD;
+	} else {
+		return orig_getdirentries(fd, buf, nbytes, basep);
+	}
+
 	// assign opcode of "getdirentires" as 73
 	int opcode = 73;
 	int starter = 0;

@@ -62,6 +62,10 @@ int main(int argc, char**argv) {
 		sessfd = accept(sockfd, (struct sockaddr *)&cli, &sa_size);
 		if (sessfd<0) err(1,0);
 		// char *buf;
+		int pid = fork();
+		if (pid != 0) {
+			continue;
+		}
 		while (1) {
 
 		char *size_pointer = malloc(sizeof(int));
