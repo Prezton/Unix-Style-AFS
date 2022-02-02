@@ -31,6 +31,7 @@ int (*orig_unlink)(const char *pathname);
 ssize_t (*orig_getdirentries)(int fd, char *buf, size_t nbytes, off_t *basep);
 struct dirtreenode* (*orig_getdirtree)( const char *path );
 void (*orig_freedirtree)( struct dirtreenode* dt );
+void customized_freedirtree(struct dirtreenode* root);
 
 #define MAXMSGLEN 200
 #define THRESHOLD 99999
@@ -155,12 +156,12 @@ int open(const char *pathname, int flags, ...) {
 		errno = received_errno;
 		return -1;
 	}
-	return received_fd + THRESHOLD;
+	return (received_fd + THRESHOLD);
 }
 
 int close(int fd) {
 
-	if (fd >= THRESHOLD) {
+	if (fd > THRESHOLD) {
 		fd -= THRESHOLD;
 	} else {
 		return orig_close(fd);
@@ -200,7 +201,7 @@ int close(int fd) {
 
 ssize_t read(int fd, void *buf, size_t count) {
 
-	if (fd >= THRESHOLD) {
+	if (fd > THRESHOLD) {
 		fd -= THRESHOLD;
 	} else {
 		return orig_read(fd, buf, count);
@@ -250,7 +251,7 @@ ssize_t read(int fd, void *buf, size_t count) {
 
 ssize_t write (int fd, const void *buf, size_t count) {
 
-	if (fd >= THRESHOLD) {
+	if (fd > THRESHOLD) {
 		fd -= THRESHOLD;
 	} else {
 		return orig_write(fd, buf, count);
@@ -306,7 +307,7 @@ ssize_t write (int fd, const void *buf, size_t count) {
 
 off_t lseek(int fd, off_t offset, int whence) {
 
-	if (fd >= THRESHOLD) {
+	if (fd > THRESHOLD) {
 		fd -= THRESHOLD;
 	} else {
 		return orig_lseek(fd, offset, whence);
@@ -425,7 +426,7 @@ int unlink (const char *pathname) {
 }
 ssize_t getdirentries (int fd, char *buf, size_t nbytes, off_t *basep) {
 
-	if (fd >= THRESHOLD) {
+	if (fd > THRESHOLD) {
 		fd -= THRESHOLD;
 	} else {
 		return orig_getdirentries(fd, buf, nbytes, basep);
@@ -509,8 +510,21 @@ struct dirtreenode* getdirtree(const char *path) {
 }
 
 void freedirtree( struct dirtreenode* dt ) {
-	fprintf(stderr, "client called freedirtree locally\n");
-	return orig_freedirtree(dt);
+	fprintf(stderr, "client called customized freedirtree\n");
+	return customized_freedirtree(dt);
+}
+
+void customized_freedirtree(struct dirtreenode* root) {
+
+	int num_subdirs = root -> num_subdirs;
+	int i = 0;
+	for (i = 0; i < num_subdirs; i++) {
+		fprintf(stderr, "i is: %d\n", i);
+		customized_freedirtree(root->subdirs[i]);
+	}
+	free(root->subdirs);
+	free(root->name);
+	free(root);
 }
 
 struct dirtreenode *deserialize(char *buf, int offset) {
