@@ -18,6 +18,7 @@
 
 #define MAXMSGLEN 100
 char *tree_string;
+int tree_offset;
 
 void serialize_tree(struct dirtreenode *root);
 int get_tree_size(struct dirtreenode *root);
@@ -350,8 +351,10 @@ int main(int argc, char**argv) {
 			fprintf(stderr, "tree string size is %d\n", tree_size);
 
 			tree_string = malloc(tree_size);
+			tree_offset = 0;
 			serialize_tree(root);
-			fprintf(stderr, "server sent out tree string %s\n", tree_string);
+			fprintf(stderr, "server sent out tree string, tree_string is: %s\n", tree_string);
+			send(sessfd, &tree_size, sizeof(int), 0);
 			send(sessfd, tree_string, tree_size, 0);
 			free(tree_string);
 			freedirtree(root);
@@ -382,21 +385,34 @@ int get_tree_size(struct dirtreenode *root) {
 
 	// each node has 3 fields: name_size (int) + name (strlen(name)) + num_children (int)
 	cur_size += (name_size + 2 * sizeof(int));
-	for (int i = 0; i < num_children; i++) {
+	int i = 0;
+	for (i = 0; i < num_children; i++) {
 		cur_size += get_tree_size(root->subdirs[i]);
 	}
 	return cur_size;
 }
+
 
 void serialize_tree(struct dirtreenode *root) {
 	int name_size = strlen(root->name);
 	char *name = root->name;
 	int num_children = root->num_subdirs;
 
-	memcpy(tree_string, &name_size, sizeof(int));
-	memcpy(tree_string, name, name_size);
-	memcpy(tree_string, &num_children, sizeof(int));
-	for (int i = 0; i < num_children; i++) {
+	memcpy(tree_string + tree_offset, &name_size, sizeof(int));
+	fprintf(stderr, "name size is %d\n", *(tree_string + tree_offset));
+
+	tree_offset += sizeof(int);
+	memcpy(tree_string + tree_offset, &num_children, sizeof(int));
+	fprintf(stderr, "children num is %d\n", *(tree_string + tree_offset));
+
+	tree_offset += sizeof(int);
+	memcpy(tree_string + tree_offset, name, name_size);
+	fprintf(stderr, "name is %s\n", name);
+
+	tree_offset += name_size;
+	int i = 0;
+	// fprintf(stderr, "name is %s\n", *(tree_string));
+	for (i = 0; i < num_children; i++) {
 		serialize_tree(root->subdirs[i]);
 	}
 }

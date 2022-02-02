@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <err.h>
 #include <errno.h>
+#include <../include/dirtree.h>
 // #include <messages_info.h>
 
 // The following line declares a function pointer with the same prototype as the open function.  
@@ -37,6 +38,8 @@ char *serverport;
 unsigned short port;
 int sockfd;
 char *serverip;
+struct dirtreenode *deserialize(char *buf, int offset);
+int tree_offset;
 
 // Sending and receiving message from server
 void connect_message(char *buf) {
@@ -78,7 +81,7 @@ char *send_message(char *buf, int total_length) {
 		fprintf(stderr, "client receive response error 1\n");
 	}
 	int reply_size = *((int *)received_size);	
-
+	// fprintf(stderr, "client reply size is %d", reply_size);
 	char *reply_message = malloc(reply_size);
 	char *temp = malloc(reply_size);
 	bytes_received = 0;
@@ -460,7 +463,11 @@ struct dirtreenode* getdirtree(const char *path) {
 	fprintf(stderr, "client called getdirtree: path size %d, path %s, total length: %d\n", path_size, path, total_length);
 	char *received_message = send_message(message, total_length);
 
-	return orig_getdirtree(path);
+	fprintf(stderr, "client received from getdirtree call tree_string is %s\n", received_message);
+	// return orig_getdirtree(path);
+	tree_offset = 0;
+	struct dirtreenode *root = deserialize(received_message, tree_offset);
+	return root;
 
 
 }
@@ -470,7 +477,35 @@ void freedirtree( struct dirtreenode* dt ) {
 	return orig_freedirtree(dt);
 }
 
+struct dirtreenode *deserialize(char *buf, int offset) {
+	fprintf(stderr, "inside\n");
 
+	int name_size;
+	memcpy(&name_size, buf + tree_offset, sizeof(int));
+	tree_offset += sizeof(int);
+	int num_subdirs;
+	memcpy(&num_subdirs, buf + tree_offset, sizeof(int));
+	tree_offset += sizeof(int);
+	fprintf(stderr, "name size %d, number of subdirs is %d\n", name_size, num_subdirs);
+
+	char *name = malloc(name_size);
+	memcpy(name, buf + tree_offset, name_size);
+	tree_offset += name_size;
+	struct dirtreenode *root = (struct dirtreenode *)malloc(sizeof(struct dirtreenode));
+
+	root->name = name;
+	root->num_subdirs = num_subdirs;
+	fprintf(stderr, "name is %s, buf is %d\n", name, *(buf + tree_offset));
+
+	root->subdirs = malloc(sizeof(struct dirtreenode) * num_subdirs);
+	int i = 0;
+	for (i = 0; i < num_subdirs; i++) {
+		fprintf(stderr, "i is: %d\n", i);
+		struct dirtreenode *child_dir = deserialize(buf, tree_offset);
+		root->subdirs[i] = child_dir;
+	}
+	return root;
+}
 
 
 // This function is automatically called when program is started
