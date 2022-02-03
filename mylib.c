@@ -503,6 +503,7 @@ struct dirtreenode* getdirtree(const char *path) {
 	fprintf(stderr, "client received from getdirtree call tree_string is %s\n", received_message);
 	// return orig_getdirtree(path);
 	tree_offset = 0;
+	fprintf(stderr, "go to deserialize\n");
 	struct dirtreenode *root = deserialize(received_message, tree_offset);
 	return root;
 
@@ -528,7 +529,6 @@ void customized_freedirtree(struct dirtreenode* root) {
 }
 
 struct dirtreenode *deserialize(char *buf, int offset) {
-	fprintf(stderr, "inside\n");
 
 	int name_size;
 	memcpy(&name_size, buf + tree_offset, sizeof(int));
@@ -536,7 +536,7 @@ struct dirtreenode *deserialize(char *buf, int offset) {
 	int num_subdirs;
 	memcpy(&num_subdirs, buf + tree_offset, sizeof(int));
 	tree_offset += sizeof(int);
-	fprintf(stderr, "name size %d, number of subdirs is %d\n", name_size, num_subdirs);
+	// fprintf(stderr, "name size %d, number of subdirs is %d\n", name_size, num_subdirs);
 
 	char *name = malloc(name_size);
 	memcpy(name, buf + tree_offset, name_size);
@@ -545,12 +545,11 @@ struct dirtreenode *deserialize(char *buf, int offset) {
 
 	root->name = name;
 	root->num_subdirs = num_subdirs;
-	fprintf(stderr, "name is %s, buf is %d\n", name, *(buf + tree_offset));
+	// fprintf(stderr, "name is %s, buf is %d\n", name, *(buf + tree_offset));
 
 	root->subdirs = malloc(sizeof(struct dirtreenode) * num_subdirs);
 	int i = 0;
 	for (i = 0; i < num_subdirs; i++) {
-		fprintf(stderr, "i is: %d\n", i);
 		struct dirtreenode *child_dir = deserialize(buf, tree_offset);
 		root->subdirs[i] = child_dir;
 	}

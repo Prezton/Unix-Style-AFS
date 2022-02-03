@@ -382,6 +382,9 @@ int main(int argc, char**argv) {
 
 
 int get_tree_size(struct dirtreenode *root) {
+	if (root == NULL) {
+		return 0;
+	}
 	int cur_size = 0;
 	int name_size = strlen(root->name);
 	char *name = root->name;
@@ -398,20 +401,23 @@ int get_tree_size(struct dirtreenode *root) {
 
 
 void serialize_tree(struct dirtreenode *root) {
+	if (root == NULL) {
+		return;
+	}
 	int name_size = strlen(root->name);
 	char *name = root->name;
 	int num_children = root->num_subdirs;
 
 	memcpy(tree_string + tree_offset, &name_size, sizeof(int));
-	fprintf(stderr, "name size is %d\n", *(tree_string + tree_offset));
+	// fprintf(stderr, "name size is %d\n", *(tree_string + tree_offset));
 
 	tree_offset += sizeof(int);
 	memcpy(tree_string + tree_offset, &num_children, sizeof(int));
-	fprintf(stderr, "children num is %d\n", *(tree_string + tree_offset));
+	// fprintf(stderr, "children num is %d\n", *(tree_string + tree_offset));
 
 	tree_offset += sizeof(int);
 	memcpy(tree_string + tree_offset, name, name_size);
-	fprintf(stderr, "name is %s\n", name);
+	// fprintf(stderr, "name is %s\n", name);
 
 	tree_offset += name_size;
 	int i = 0;
